@@ -9,6 +9,9 @@ android {
     buildFeatures {
         buildConfig = true
     }
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
     defaultConfig {
         buildConfigField "String", "MANAGER_APPLICATION_ID", "\"${project(':manager').android.defaultConfig.applicationId}\""
     }
@@ -27,5 +30,9 @@ dependencies {
     implementation project(":rish")
     implementation project(":server-shared")
     implementation libs.hidden.compat
+    testImplementation "junit:junit:4.13.2"
+    testImplementation "org.mockito:mockito-core:5.18.0"
+    testImplementation libs.hidden.stub
+    testImplementation project(":provider")
     compileOnly libs.hidden.stub
 }
