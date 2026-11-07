@@ -43,6 +43,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import kotlin.collections.ArraysKt;
 import moe.shizuku.api.BinderContainer;
@@ -59,6 +61,7 @@ import rikka.rish.RishConfig;
 import rikka.shizuku.ShizukuApiConstants;
 import rikka.shizuku.server.api.IContentProviderUtils;
 import rikka.shizuku.server.util.HandlerUtil;
+import rikka.shizuku.server.util.ManagerApplicationLookup;
 import rikka.shizuku.server.util.InstalledPackagesCompat;
 import rikka.shizuku.server.util.UserHandleCompat;
 
@@ -116,12 +119,49 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
         return Android17Compat.getApplicationInfo(MANAGER_APPLICATION_ID, 0, 0);
     }
 
+    private static ManagerApplicationLookup.Result<ApplicationInfo> lookupManagerApplication() {
+        return ManagerApplicationLookup.resolve(
+                () -> {
+                    ApplicationInfo info = Android17Compat.getApplicationInfoOrThrow(MANAGER_APPLICATION_ID, 0, 0);
+                    if (info != null && (info.sourceDir == null || info.sourceDir.isEmpty())) {
+                        throw new IllegalStateException("Manager APK path is unavailable");
+                    }
+                    return info;
+                },
+                () -> {
+                    Android17Compat.invalidatePackageManager();
+                    android.os.SystemClock.sleep(1_000L);
+                });
+    }
+
     @SuppressWarnings({"FieldCanBeLocal"})
     private final Handler mainHandler = new Handler(Looper.myLooper());
     //private final Context systemContext = HiddenApiBridge.getSystemContext();
     private final ShizukuClientManager clientManager;
     private final ShizukuConfigManager configManager;
     private final int managerAppId;
+    private final ApkChangedListener managerApkListener = this::onManagerApkChanged;
+    private final ExecutorService managerLookupExecutor = Executors.newSingleThreadExecutor(task -> {
+        Thread thread = new Thread(task, "manager-package-lookup");
+        thread.setDaemon(true);
+        return thread;
+    });
+
+    private void onManagerApkChanged() {
+        managerLookupExecutor.execute(() -> {
+            ManagerApplicationLookup.Result<ApplicationInfo> result = lookupManagerApplication();
+            if (result.application != null) {
+                ApkChangedObservers.stop(managerApkListener);
+                ApkChangedObservers.start(result.application.sourceDir, managerApkListener);
+            } else if (result.confirmedMissing) {
+                LOGGER.w("manager app is confirmed uninstalled in user 0, exiting...");
+                System.exit(ServerConstants.MANAGER_APP_NOT_FOUND);
+            } else {
+                LOGGER.w(result.failure, "Manager package lookup unavailable; keeping server alive");
+                mainHandler.postDelayed(this::onManagerApkChanged, 5_000L);
+            }
+        });
+    }
 
     public ShizukuService() {
         super();
@@ -135,9 +175,14 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
         waitSystemService(Context.USER_SERVICE);
         waitSystemService(Context.APP_OPS_SERVICE);
 
-        ApplicationInfo ai = getManagerApplicationInfo();
+        ManagerApplicationLookup.Result<ApplicationInfo> lookup = lookupManagerApplication();
+        ApplicationInfo ai = lookup.application;
         if (ai == null) {
-            System.exit(ServerConstants.MANAGER_APP_NOT_FOUND);
+            if (lookup.confirmedMissing) {
+                System.exit(ServerConstants.MANAGER_APP_NOT_FOUND);
+            }
+            System.exit(ServerConstants.MANAGER_APP_LOOKUP_UNAVAILABLE);
+            throw new IllegalStateException("Manager package lookup unavailable after retries", lookup.failure);
         }
 
         assert ai != null;
@@ -146,12 +191,7 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
         configManager = getConfigManager();
         clientManager = getClientManager();
 
-        ApkChangedObservers.start(ai.sourceDir, () -> {
-            if (getManagerApplicationInfo() == null) {
-                LOGGER.w("manager app is uninstalled in user 0, exiting...");
-                System.exit(ServerConstants.MANAGER_APP_NOT_FOUND);
-            }
-        });
+        ApkChangedObservers.start(ai.sourceDir, managerApkListener);
 
         BinderSender.register(this);
 
@@ -544,6 +584,16 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
     }
 
     static void sendBinderToManager(Binder binder, int userId) {
+        if (userId != 0) {
+            try {
+                if (Android17Compat.getApplicationInfoOrThrow(MANAGER_APPLICATION_ID, 0, userId) == null) {
+                    LOGGER.d("Manager app not installed in user %d, skipping binder dispatch", userId);
+                    return;
+                }
+            } catch (Exception e) {
+                LOGGER.w(e, "Manager package lookup unavailable for user %d; attempting dispatch", userId);
+            }
+        }
         boolean success = sendBinderToUserApp(binder, MANAGER_APPLICATION_ID, userId);
         if (!success) {
             // For unknown reason, sometimes this could happens

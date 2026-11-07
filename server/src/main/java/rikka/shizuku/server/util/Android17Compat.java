@@ -8,6 +8,7 @@ import android.os.ServiceManager;
 import android.util.Log;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.InvocationTargetException;
 
 import rikka.hidden.compat.PackageManagerApis;
 import rikka.hidden.compat.PermissionManagerApis;
@@ -70,25 +71,40 @@ public class Android17Compat {
 
     public static ApplicationInfo getApplicationInfo(String packageName, long flags, int userId) {
         try {
-            return PackageManagerApis.getApplicationInfoNoThrow(packageName, flags, userId);
-        } catch (NoSuchMethodError e) {
-            try {
-                Object pm = getPackageManager();
-                if (sGetApplicationInfoMethod == null) {
-                    synchronized (Android17Compat.class) {
-                        if (sGetApplicationInfoMethod == null) {
-                            sGetApplicationInfoMethod = findMethod(pm, "getApplicationInfo", String.class, long.class);
-                        }
-                    }
-                }
-                if (sGetApplicationInfoMethod != null) {
-                    return (ApplicationInfo) invokeMethod(pm, sGetApplicationInfoMethod, packageName, flags, userId);
-                }
-            } catch (Throwable ex) {
-                Log.e(TAG, "Android 17 fallback for getApplicationInfo failed", ex);
-            }
+            return getApplicationInfoOrThrow(packageName, flags, userId);
+        } catch (Exception e) {
+            Log.e(TAG, "getApplicationInfo failed", e);
             return null;
         }
+    }
+
+    // Null means a successful absence query. Binder and lookup failures stay exceptions.
+    public static ApplicationInfo getApplicationInfoOrThrow(String packageName, long flags, int userId) throws Exception {
+        Object pm = getPackageManager();
+        Method method = sGetApplicationInfoMethod;
+        if (method == null) {
+            try {
+                method = pm.getClass().getMethod("getApplicationInfo", String.class, long.class, int.class);
+            } catch (NoSuchMethodException e) {
+                method = pm.getClass().getMethod("getApplicationInfo", String.class, int.class, int.class);
+            }
+            sGetApplicationInfoMethod = method;
+        }
+        Object platformFlags = flags;
+        if (method.getParameterTypes()[1] == int.class) platformFlags = (int) flags;
+        try {
+            return (ApplicationInfo) method.invoke(pm, packageName, platformFlags, userId);
+        } catch (InvocationTargetException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof Exception) throw (Exception) cause;
+            throw e;
+        }
+    }
+
+    public static synchronized void invalidatePackageManager() {
+        sPackageManager = null;
+        sGetPackageInfoMethod = null;
+        sGetApplicationInfoMethod = null;
     }
 
     public static int checkPermission(String permissionName, String packageName, int userId) {
