@@ -26,12 +26,13 @@ subprojects { subproject ->
     }
 }
 
-def gitCommitCount = Integer.parseInt("git rev-list --count HEAD".execute([], project.rootDir).text.trim())
-def baseVersionName = "13.7.0"
+// Our own release numbering; upstream base kept for reference in the name.
+def upstreamVersionName = "13.7.0"
+def forkVersionName = providers.gradleProperty("FORK_VERSION_NAME").get()
 def isBeta = project.hasProperty("beta")
 ext {
-    versionCode = gitCommitCount
-    versionName = "${baseVersionName}${if (isBeta) "-beta" else ""}-thedjchi"
+    versionCode = Integer.parseInt(providers.gradleProperty("FORK_VERSION_CODE").get())
+    versionName = "${forkVersionName}${if (isBeta) "-beta" else ""} (${upstreamVersionName})"
 }
 
 // One identity for the manager, starter, server and generated UI resources.

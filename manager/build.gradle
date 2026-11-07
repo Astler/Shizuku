@@ -152,7 +152,7 @@ afterEvaluate {
 android.applicationVariants.configureEach { variant ->
     variant.registerGeneratedResFolders(files(forkResources.map { it.destinationDir }).builtBy(forkResources))
     variant.outputs.configureEach {
-        outputFileName = "${rootProject.ext.FORK_APPLICATION_ID}-v${variant.versionName}-${variant.name}.apk"
+        outputFileName = "${rootProject.ext.FORK_APPLICATION_ID}-v${providers.gradleProperty("FORK_VERSION_NAME").get()}-${variant.name}.apk"
 
         variant.assembleProvider.get().doLast {
             def outDir = new File(rootDir, "out")
