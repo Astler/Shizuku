@@ -1,5 +1,7 @@
 package moe.shizuku.manager.adb
 
+import moe.shizuku.manager.utils.SettingsHelper
+
 import android.Manifest.permission.WRITE_SECURE_SETTINGS
 import android.content.Context
 import android.content.pm.PackageManager
@@ -73,7 +75,7 @@ object AdbStarter {
         if (entered) {
             // Do not disable discovery from a cancelled or failed launch.
             if (context.checkSelfPermission(WRITE_SECURE_SETTINGS) == PackageManager.PERMISSION_GRANTED) {
-                Settings.Global.putInt(context.contentResolver, "adb_wifi_enabled", 0)
+                SettingsHelper.putGlobalIntSafely(context.contentResolver, "adb_wifi_enabled", 0)
             }
         } else {
             ShizukuStateMachine.update()
@@ -85,11 +87,10 @@ object AdbStarter {
             launches.withGate({}) {
                 val cr = context.contentResolver
                 if (context.checkSelfPermission(WRITE_SECURE_SETTINGS) == PackageManager.PERMISSION_GRANTED) {
-                    Settings.Global.putInt(cr, Settings.Global.ADB_ENABLED, 1)
-                    Settings.Global.putLong(cr, "adb_allowed_connection_time", 0L)
+                    SettingsHelper.putGlobalIntSafely(cr, Settings.Global.ADB_ENABLED, 1)
+                    SettingsHelper.putGlobalLongSafely(cr, "adb_allowed_connection_time", 0L)
                 }
-                val adbEnabled = Settings.Global.getInt(cr, Settings.Global.ADB_ENABLED, 0)
-                check(adbEnabled != 0) { "ADB is not enabled" }
+                check(SettingsHelper.isAdbEnabledOrUnknown(cr)) { "ADB is not enabled" }
                 ShizukuStateMachine.set(ShizukuStateMachine.State.STOPPING)
                 val key = loadKey()
                 connectWithRetry(port, key, {}) { client, checkActive, mark ->

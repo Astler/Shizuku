@@ -1,5 +1,7 @@
 package moe.shizuku.manager.home
 
+import moe.shizuku.manager.utils.SettingsHelper
+
 import android.Manifest.permission.WRITE_SECURE_SETTINGS
 import android.app.Dialog
 import android.content.ActivityNotFoundException
@@ -57,7 +59,7 @@ class AdbDialogFragment : DialogFragment() {
         adbMdns.start()
         val context = dialog.context
         if (context.checkSelfPermission(WRITE_SECURE_SETTINGS) == PackageManager.PERMISSION_GRANTED)
-            Settings.Global.putInt(context.contentResolver, "adb_wifi_enabled", 1)
+            SettingsHelper.putGlobalIntSafely(context.contentResolver, "adb_wifi_enabled", 1)
 
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             SettingsPage.Developer.HighlightWirelessDebugging.launch(context)

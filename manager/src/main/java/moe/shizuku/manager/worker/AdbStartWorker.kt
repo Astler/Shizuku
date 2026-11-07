@@ -1,5 +1,7 @@
 package moe.shizuku.manager.worker
 
+import moe.shizuku.manager.utils.SettingsHelper
+
 import android.app.KeyguardManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -50,8 +52,8 @@ class AdbStartWorker(context: Context, params: WorkerParameters) : CoroutineWork
 
             val cr = applicationContext.contentResolver
 
-            Settings.Global.putInt(cr, Settings.Global.ADB_ENABLED, 1)
-            Settings.Global.putLong(cr, "adb_allowed_connection_time", 0L)
+            SettingsHelper.putGlobalIntSafely(cr, Settings.Global.ADB_ENABLED, 1)
+            SettingsHelper.putGlobalLongSafely(cr, "adb_allowed_connection_time", 0L)
 
             val tcpPort = EnvironmentUtils.getAdbTcpPort()
             if (tcpPort > 0 && !ShizukuSettings.getTcpMode()) {
@@ -95,7 +97,7 @@ class AdbStartWorker(context: Context, params: WorkerParameters) : CoroutineWork
                                 if (intent.action == Intent.ACTION_USER_PRESENT) {
                                     context.unregisterReceiver(this)
                                     unlockReceiver = null
-                                    Settings.Global.putInt(cr, "adb_wifi_enabled", 1)
+                                    SettingsHelper.putGlobalIntSafely(cr, "adb_wifi_enabled", 1)
                                 }
                             }
                         }
@@ -116,7 +118,7 @@ class AdbStartWorker(context: Context, params: WorkerParameters) : CoroutineWork
                     }
                 }
 
-                Settings.Global.putInt(cr, "adb_wifi_enabled", 1)
+                SettingsHelper.putGlobalIntSafely(cr, "adb_wifi_enabled", 1)
                 cr.registerContentObserver(Settings.Global.getUriFor("adb_wifi_enabled"), false, observer)
                 startDiscoveryWithTimeout()
 

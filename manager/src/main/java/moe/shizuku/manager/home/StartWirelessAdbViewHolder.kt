@@ -1,5 +1,7 @@
 package moe.shizuku.manager.home
 
+import moe.shizuku.manager.utils.SettingsHelper
+
 import android.Manifest.permission.WRITE_SECURE_SETTINGS
 import android.content.Context
 import android.content.Intent
@@ -59,12 +61,11 @@ class StartWirelessAdbViewHolder(binding: HomeStartWirelessAdbBinding, root: Vie
 
             val cr = context.contentResolver
             if (context.checkSelfPermission(WRITE_SECURE_SETTINGS) == PackageManager.PERMISSION_GRANTED) {
-                Settings.Global.putInt(cr, Settings.Global.ADB_ENABLED, 1)
-                Settings.Global.putLong(cr, "adb_allowed_connection_time", 0L)
+                SettingsHelper.putGlobalIntSafely(cr, Settings.Global.ADB_ENABLED, 1)
+                SettingsHelper.putGlobalLongSafely(cr, "adb_allowed_connection_time", 0L)
             }
         
-            val adbEnabled = Settings.Global.getInt(cr, Settings.Global.ADB_ENABLED, 0)
-            if (adbEnabled == 0) {
+            if (!SettingsHelper.isAdbEnabledOrUnknown(cr)) {
                 WadbEnableUsbDebuggingDialogFragment().show(context.asActivity<FragmentActivity>().supportFragmentManager)
                 return
             }
