@@ -116,6 +116,12 @@ class AdbMessage(
 
         const val HEADER_LENGTH = 24
 
+        internal fun validateHeader(command: Int, dataLength: Int, magic: Int) {
+            require(magic == (command xor -1) && dataLength in 0..AdbProtocol.A_MAXDATA) {
+                "Invalid ADB header"
+            }
+        }
+
 
         private fun crc32(data: ByteArray?): Int {
             if (data == null) return 0

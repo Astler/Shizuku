@@ -138,13 +138,9 @@ class AdbClient(private val host: String, private val port: Int, private val key
         val dataLength = buffer.int
         val checksum = buffer.int
         val magic = buffer.int
-        val data: ByteArray?
-        if (dataLength >= 0) {
-            data = ByteArray(dataLength)
-            inputStream.readFully(data, 0, dataLength)
-        } else {
-            data = null
-        }
+        AdbMessage.validateHeader(command, dataLength, magic)
+        val data = ByteArray(dataLength)
+        inputStream.readFully(data, 0, dataLength)
         val message = AdbMessage(command, arg0, arg1, dataLength, checksum, magic, data)
         message.validateOrThrow()
         Log.d(TAG, "read ${message.toStringShort()}")

@@ -105,6 +105,11 @@ public class Android17Compat {
                     }
                 }
                 if (sCheckPermissionMethod != null) {
+                    Class<?>[] types = sCheckPermissionMethod.getParameterTypes();
+                    if (types.length == 4 && types[2] == String.class) {
+                        // Android 17 uses package, permission, persistent device ID, user.
+                        return (int) sCheckPermissionMethod.invoke(pm, packageName, permissionName, "default:0", userId);
+                    }
                     return (int) invokeMethod(pm, sCheckPermissionMethod, permissionName, packageName, userId);
                 }
             } catch (Throwable ex) {
