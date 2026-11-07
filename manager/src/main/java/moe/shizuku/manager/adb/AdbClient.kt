@@ -29,7 +29,9 @@ private const val TAG = "AdbClient"
 
 class AdbClient(private val host: String, private val port: Int, private val key: AdbKey) : Closeable {
 
-    private lateinit var socket: Socket
+    // Create the socket before registering cancellable I/O so even an early close
+    // prevents a later connect from sending anything.
+    private val socket = Socket()
     private lateinit var plainInputStream: DataInputStream
     private lateinit var plainOutputStream: DataOutputStream
 
@@ -43,8 +45,8 @@ class AdbClient(private val host: String, private val port: Int, private val key
     private val outputStream get() = if (useTls) tlsOutputStream else plainOutputStream
 
     fun connect() {
-        val socket = Socket()
         val address = InetSocketAddress(host, port)
+        socket.soTimeout = 15_000
         socket.connect(address, 5000)
 
         socket.tcpNoDelay = true
@@ -62,6 +64,7 @@ class AdbClient(private val host: String, private val port: Int, private val key
 
             val sslContext = key.sslContext
             tlsSocket = sslContext.socketFactory.createSocket(socket, host, port, true) as SSLSocket
+            tlsSocket.soTimeout = 15_000
             tlsSocket.startHandshake()
             Log.d(TAG, "Handshake succeeded.")
 
@@ -84,9 +87,17 @@ class AdbClient(private val host: String, private val port: Int, private val key
         if (message.command != A_CNXN) error("not A_CNXN")
     }
 
-    fun command(cmd: String, listener: ((ByteArray) -> Unit)? = null) {
+    fun command(cmd: String, listener: ((ByteArray) -> Unit)? = null) =
+        command(cmd, listener, {}, {})
+
+    internal fun command(cmd: String, listener: ((ByteArray) -> Unit)?,
+                         checkAllowed: () -> Unit, markPossiblyDispatched: () -> Unit) {
         val localId = 1
-        write(A_OPEN, localId, 0, cmd)
+        val packet = AdbMessage(A_OPEN, localId, 0, cmd).toByteArray()
+        AdbCommandDispatch.write(outputStream, packet, {
+            check(!socket.isClosed) { "ADB socket was closed before command write" }
+            checkAllowed()
+        }, markPossiblyDispatched)
 
         var message = read()
         when (message.command) {
@@ -148,6 +159,9 @@ class AdbClient(private val host: String, private val port: Int, private val key
     }
 
     override fun close() {
+        // Closing the raw socket first also unblocks TLS handshakes and reads.
+        runCatching { socket.close() }
+        if (::tlsSocket.isInitialized) runCatching { tlsSocket.close() }
         try {
             plainInputStream.close()
         } catch (e: Throwable) {
