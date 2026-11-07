@@ -97,6 +97,10 @@
             android:title="@string/settings_help" />
 
         <Preference
+            android:key="privacy_policy"
+            android:title="@string/privacy_policy" />
+
+        <Preference
             android:key="report_bug"
             android:title="@string/settings_report_bug" />
 

@@ -287,6 +287,11 @@ class SettingsFragment : PreferenceFragmentCompat(), SharedPreferences.OnSharedP
             true
         }
 
+        findPreference<Preference>("privacy_policy")!!.setOnPreferenceClickListener {
+            CustomTabsHelper.launchUrlOrCopy(context, getString(R.string.privacy_policy_url))
+            true
+        }
+
         reportBugPreference.setOnPreferenceClickListener {
             BugReportDialog().show(parentFragmentManager, "BugReportDialog")
             true
