@@ -18,7 +18,7 @@ import moe.shizuku.manager.R
 import moe.shizuku.manager.MainActivity
 import moe.shizuku.manager.ShizukuSettings
 import moe.shizuku.manager.receiver.ShizukuReceiverStarter
-import moe.shizuku.manager.utils.SettingsPage
+import moe.shizuku.manager.utils.WatchdogNotificationSettingsPage
 import moe.shizuku.manager.utils.ShizukuStateMachine
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -126,7 +126,7 @@ class WatchdogService : Service() {
         }
         val learnMorePendingIntent = PendingIntent.getActivity(this, 0, learnMoreIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
 
-        val disableIntent = SettingsPage.Notifications.NotificationChannel.buildIntent(applicationContext)
+        val disableIntent = WatchdogNotificationSettingsPage.buildIntent(applicationContext)
         val disablePendingIntent = PendingIntent.getActivity(this, 0, disableIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
 
         val notification = NotificationCompat.Builder(this, channelId)

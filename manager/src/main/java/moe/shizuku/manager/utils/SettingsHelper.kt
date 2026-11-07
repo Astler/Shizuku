@@ -1,14 +1,13 @@
 package moe.shizuku.manager.utils
 
 import android.content.ContentResolver
+import moe.shizuku.manager.DistributionFeatures
 import android.content.Context
 import android.util.Log
 import android.content.Intent
-import android.net.Uri
 import androidx.activity.result.ActivityResultLauncher
 import android.os.PowerManager
 import android.provider.Settings
-import moe.shizuku.manager.utils.SettingsPage
 
 object SettingsHelper {
 
@@ -54,9 +53,7 @@ object SettingsHelper {
     }
 
     fun requestIgnoreBatteryOptimizations(context: Context, launcher: ActivityResultLauncher<Intent>? = null) {
-        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-            setData(Uri.parse("package:" + context.packageName))
-        }
+        val intent = DistributionFeatures.batteryOptimizationIntent(context)
         if (launcher != null) {
             launcher.launch(intent)
         } else {

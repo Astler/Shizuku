@@ -25,7 +25,8 @@ Clone with submodules, then build with JDK 21 and the Android SDK:
 ```sh
 git clone --recurse-submodules https://github.com/Astler/Shizuku.git
 cd Shizuku
-./gradlew :manager:assembleDebug
+./gradlew :manager:assembleGithubDebug
+./gradlew :manager:assembleGithubRelease :manager:assemblePlayRelease :manager:bundlePlayRelease
 ./gradlew test
 ```
 
@@ -35,8 +36,38 @@ writable SDK installation. With AGP 8.11.1, an SDK distributed as `android-37.0`
 may require a local Gradle init script selecting that platform hash (see the F2
 verification report). This selects the same API 37 platform, not an older SDK.
 
-Debug APK: `manager/build/outputs/apk/debug/<applicationId>-v<version>-debug.apk`.
+The `distribution` dimension has two flavors with the same application ID and version:
+
+- `github` retains self-updates from GitHub, stealth/stub APKs, accessibility pairing,
+  battery exemption requests and the opt-in watchdog. GitHub Actions publishes this flavor.
+- `play` uses notification pairing, omits the updater/stealth/accessibility/watchdog
+  implementations and their UI, and opens the general battery optimization settings.
+  Previously saved feature preferences cannot reactivate removed services.
+
+Both flavors include Settings → Privacy policy. Neither changes the client/server protocol.
+
+Release outputs (with the default identity/version):
+
+- `manager/build/outputs/apk/github/release/pressf.gg.access-v1.0.0-release.apk`
+- `manager/build/outputs/apk/play/release/pressf.gg.access-v1.0.0-play-release.apk`
+- `manager/build/outputs/bundle/playRelease/manager-play-release.aab`
+
+Debug APKs use the corresponding `apk/<flavor>/debug/` directory and `-debug.apk`
+suffix. Release mapping copies in `out/mapping/` include the flavor to avoid collisions.
 Use your own signing configuration for distribution; see `signing.gradle`.
+
+To inspect final APKs without interacting with a device:
+
+```sh
+python3 tools/verify-distributions.py --aapt2 "$ANDROID_HOME/build-tools/37.0.0/aapt2" \
+  --github-apk manager/build/outputs/apk/github/release/pressf.gg.access-v1.0.0-release.apk \
+  --play-apk manager/build/outputs/apk/play/release/pressf.gg.access-v1.0.0-play-release.apk \
+  --output out/distribution-verification
+```
+
+Optionally pass `--baseline-permissions <pre-flavor-aapt2-dump.txt>` to assert that
+GitHub's full permission list is unchanged. Play retains `FOREGROUND_SERVICE` for
+notification pairing's `shortService`; the special-use watchdog service is absent.
 Android 7 / API 24 or later is required. Wireless debugging generally requires
 Android 11 or later; root or a PC ADB connection are alternatives.
 

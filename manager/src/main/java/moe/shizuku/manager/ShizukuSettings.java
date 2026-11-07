@@ -13,7 +13,6 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatDelegate;
 import java.lang.annotation.Retention;
 import java.util.Locale;
-import moe.shizuku.manager.service.WatchdogService;
 import moe.shizuku.manager.receiver.BootCompleteReceiver;
 import moe.shizuku.manager.utils.Token;
 import moe.shizuku.manager.utils.EmptySharedPreferencesImpl;
@@ -150,18 +149,19 @@ public class ShizukuSettings {
     }
     
     public static boolean getWatchdog() {
-        return getPreferences().getBoolean(Keys.KEY_WATCHDOG, false);
+        return !BuildConfig.PLAY_BUILD && getPreferences().getBoolean(Keys.KEY_WATCHDOG, false);
     }
 
     public static boolean isWatchdogRunning() {
-        return WatchdogService.isRunning();
+        return DistributionFeatures.isWatchdogRunning();
     }
 
     public static void setWatchdog(Context context, boolean enable) {
+        if (BuildConfig.PLAY_BUILD) return;
         if (enable) {
-            WatchdogService.start(context);
+            DistributionFeatures.startWatchdog(context);
         } else {
-            WatchdogService.stop(context);
+            DistributionFeatures.stopWatchdog(context);
         }
         getPreferences().edit().putBoolean(Keys.KEY_WATCHDOG, enable).apply();
         return;
@@ -193,7 +193,7 @@ public class ShizukuSettings {
     }
 
     public static boolean getLegacyPairing() {
-        return getPreferences().getBoolean(Keys.KEY_LEGACY_PAIRING, false);
+        return !BuildConfig.PLAY_BUILD && getPreferences().getBoolean(Keys.KEY_LEGACY_PAIRING, false);
     }
 
     @AppCompatDelegate.NightMode
@@ -214,6 +214,6 @@ public class ShizukuSettings {
     }
 
     public static int getUpdateMode() {
-        return getPreferences().getInt(Keys.KEY_UPDATE_MODE, UpdateMode.STABLE);
+        return BuildConfig.PLAY_BUILD ? UpdateMode.OFF : getPreferences().getInt(Keys.KEY_UPDATE_MODE, UpdateMode.STABLE);
     }
 }

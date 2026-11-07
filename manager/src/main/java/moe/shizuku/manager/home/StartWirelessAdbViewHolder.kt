@@ -16,18 +16,15 @@ import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.core.view.isVisible
 import androidx.fragment.app.FragmentActivity
-import androidx.work.WorkManager
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import moe.shizuku.manager.Helps
 import moe.shizuku.manager.ShizukuSettings
 import moe.shizuku.manager.R
-import moe.shizuku.manager.adb.AdbPairingTutorialActivity
 import moe.shizuku.manager.adb.AdbStarter
 import moe.shizuku.manager.databinding.HomeItemContainerBinding
 import moe.shizuku.manager.databinding.HomeStartWirelessAdbBinding
-import moe.shizuku.manager.home.showAccessibilityDialog
+import moe.shizuku.manager.DistributionFeatures
 import moe.shizuku.manager.ktx.toHtml
 import moe.shizuku.manager.receiver.NotifCancelReceiver
 import moe.shizuku.manager.starter.StarterActivity
@@ -124,15 +121,6 @@ class StartWirelessAdbViewHolder(binding: HomeStartWirelessAdbBinding, root: Vie
 
     @RequiresApi(Build.VERSION_CODES.R)
     private fun onPairClicked(context: Context) {
-        if (EnvironmentUtils.isTelevision()) {
-            context.showAccessibilityDialog()
-        } else if ((context.display?.displayId ?: -1) > 0 || ShizukuSettings.getLegacyPairing()) {
-            // Running in a multi-display environment (e.g., Windows Subsystem for Android),
-            // pairing dialog can be displayed simultaneously with Shizuku.
-            // Input from notification is harder to use under this situation.
-            AdbPairDialogFragment().show(context.asActivity<FragmentActivity>().supportFragmentManager)
-        } else {
-            context.startActivity(Intent(context, AdbPairingTutorialActivity::class.java))
-        }
+        DistributionFeatures.pair(context)
     }
 }

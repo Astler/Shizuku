@@ -229,6 +229,9 @@
     <string name="dark_theme_on">Always dark</string>
     <string name="follow_system">Follow system</string>
 
+    <string name="privacy_policy">Privacy policy</string>
+    <string name="privacy_policy_url" translatable="false">https://geekstand.top/uncategorized/pressf-app-privacy-policy/</string>
+
     <!-- About -->
     <string name="action_about">About</string>
     <string name="about_dialog_button_close">Close</string>

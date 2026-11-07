@@ -48,6 +48,17 @@ android {
             }
         }
     }
+    flavorDimensions += "distribution"
+    productFlavors {
+        github {
+            dimension = "distribution"
+            buildConfigField "boolean", "PLAY_BUILD", "false"
+        }
+        play {
+            dimension = "distribution"
+            buildConfigField "boolean", "PLAY_BUILD", "true"
+        }
+    }
     buildFeatures {
         buildConfig = true
         viewBinding = true
@@ -121,38 +132,41 @@ materialThemeBuilder {
     generateTextColors = true
 }
 
-def collapseReleaseResourceNames = tasks.register("collapseReleaseResourceNames") {
-    def aapt2 = Paths.get(project.android.sdkDirectory.path, "build-tools", project.android.buildToolsVersion, "aapt2")
-    def zip = Paths.get(project.buildDir.path, "intermediates",
-        "optimized_processed_res", "release", "optimizeReleaseResources", "resources-release-optimize.ap_")
-    doLast {
-        def optimized = new File("${zip}.opt")
-        def execOps = services.get(ExecOperations)
-        execOps.exec {
-            commandLine aapt2.toFile(), "optimize", "--collapse-resource-names",
-                "--resources-config-path", "aapt2-resources.cfg",
-                "-o", optimized, zip.toFile()
-            ignoreExitValue = false
-        }
-        if (optimized.exists()) {
-            delete(zip.toFile())
-            optimized.renameTo(zip.toFile())
-        }
-    }
-}
-
 tasks.named("preBuild").configure { dependsOn(forkNotices) }
-
-afterEvaluate {
-    tasks.getByName("optimizeReleaseResources").finalizedBy(collapseReleaseResourceNames)
-    tasks.getByName("preReleaseBuild").dependsOn(":shell:assembleRelease")
-    tasks.getByName("preDebugBuild").dependsOn(":shell:assembleDebug")
-}
 
 android.applicationVariants.configureEach { variant ->
     variant.registerGeneratedResFolders(files(forkResources.map { it.destinationDir }).builtBy(forkResources))
+    def variantName = variant.name
+    def capitalizedVariant = variantName.capitalize()
+    def buildTypeName = variant.buildType.name
+    def distributionSuffix = variant.flavorName == "play" ? "-play" : ""
+    tasks.named("pre${capitalizedVariant}Build").configure {
+        dependsOn(":shell:assemble${buildTypeName.capitalize()}")
+    }
+    if (variant.buildType.minifyEnabled) {
+        def optimizeTask = tasks.named("optimize${capitalizedVariant}Resources")
+        def collapseResources = tasks.register("collapse${capitalizedVariant}ResourceNames") {
+            // Consume AGP's declared output instead of hardcoding variant-specific paths.
+            inputs.files(optimizeTask.map { it.outputs.files })
+            doLast {
+                def resourceArchive = optimizeTask.get().outputs.files.asFileTree.matching {
+                    include "**/*.ap_"
+                }.singleFile
+                def optimized = new File("${resourceArchive}.opt")
+                def aapt2 = Paths.get(android.sdkDirectory.path, "build-tools", android.buildToolsVersion, "aapt2")
+                services.get(ExecOperations).exec {
+                    commandLine aapt2.toFile(), "optimize", "--collapse-resource-names",
+                        "--resources-config-path", "aapt2-resources.cfg",
+                        "-o", optimized, resourceArchive
+                }
+                java.nio.file.Files.move(optimized.toPath(), resourceArchive.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+            }
+        }
+        optimizeTask.configure { finalizedBy(collapseResources) }
+    }
     variant.outputs.configureEach {
-        outputFileName = "${rootProject.ext.FORK_APPLICATION_ID}-v${providers.gradleProperty("FORK_VERSION_NAME").get()}-${variant.name}.apk"
+        outputFileName = "${rootProject.ext.FORK_APPLICATION_ID}-v${providers.gradleProperty("FORK_VERSION_NAME").get()}${distributionSuffix}-${buildTypeName}.apk"
 
         variant.assembleProvider.get().doLast {
             def outDir = new File(rootDir, "out")
@@ -163,7 +177,7 @@ android.applicationVariants.configureEach { variant ->
                 copy {
                     from variant.mappingFileProvider.get()
                     into mappingDir
-                    rename { String fileName -> "mapping-${variant.versionName}.txt" }
+                    rename { String fileName -> "mapping-${variant.flavorName}-${variant.versionName}.txt" }
                 }
                 copy {
                     from outputFile
@@ -206,7 +220,7 @@ dependencies {
     implementation "androidx.preference:preference-ktx:1.2.1"
     implementation "androidx.work:work-runtime-ktx:2.10.4"
 
-    implementation "com.android.tools.build:apksig:8.13.2"
+    githubImplementation "com.android.tools.build:apksig:8.13.2"
     implementation "com.google.android.material:material:1.14.0-alpha08"
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
     implementation "com.github.topjohnwu.libsu:core:6.0.0"
@@ -224,11 +238,11 @@ dependencies {
     implementation "dev.rikka.rikkax.preference:simplemenu-preference:1.0.3"
     implementation "dev.rikka.rikkax.lifecycle:lifecycle-resource-livedata:1.0.1"
 
-    implementation "io.github.reandroid:ARSCLib:1.3.8"
+    githubImplementation "io.github.reandroid:ARSCLib:1.3.8"
     implementation "io.github.vvb2060.ndk:boringssl:20250114"
 
     implementation "org.bouncycastle:bcpkix-jdk18on:1.80"
-    implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0"
+    githubImplementation "org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0"
     implementation "org.lsposed.libcxx:libcxx:27.0.12077973"
     implementation "org.lsposed.hiddenapibypass:hiddenapibypass:6.1"
 
