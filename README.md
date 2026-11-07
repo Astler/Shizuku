@@ -1,4 +1,4 @@
-# WE Access (working name)
+# PressF Access
 
 An independent Android privileged-access manager maintained in Astler/Shizuku,
 based on Shizuku by RikkaApps and thedjchi's 13.7.0 fork. It lets compatible apps
