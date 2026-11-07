@@ -56,6 +56,11 @@ public final class InstalledPackagesCompat {
             return Collections.emptyList();
         }
 
+        // Some framework implementations return a List directly.
+        if (result instanceof List) {
+            return (List<PackageInfo>) result;
+        }
+
         String resultClassName = result.getClass().getName();
         if (resultClassName.startsWith(PARCELED_LIST_SLICE) || resultClassName.contains("PackageInfoList")) {
             Object list = result.getClass().getMethod("getList").invoke(result);
