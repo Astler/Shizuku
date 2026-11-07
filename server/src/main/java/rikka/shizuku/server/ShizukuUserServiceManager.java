@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 import moe.shizuku.starter.ServiceStarter;
+import moe.shizuku.common.util.UserServiceRegistry;
 import rikka.shizuku.server.util.Android17Compat;
 import rikka.hidden.compat.UserManagerApis;
 import rikka.shizuku.server.util.UserHandleCompat;
@@ -32,11 +33,18 @@ public class ShizukuUserServiceManager extends UserServiceManager {
         if (use32Bits && new File("/system/bin/app_process32").exists()) {
             appProcess = "/system/bin/app_process32";
         }
+        final File ticket;
+        try {
+            ticket = UserServiceRegistry.prepare(ShizukuService.MANAGER_APPLICATION_ID, token, packageName);
+        } catch (Exception e) {
+            // Do not start a privileged process that we cannot identify after a restart.
+            throw new IllegalStateException("Cannot journal user-service launch", e);
+        }
         return ServiceStarter.commandForUserService(
                 appProcess,
                 ShizukuService.getManagerApplicationInfo().sourceDir,
                 ShizukuService.MANAGER_APPLICATION_ID,
-                token, packageName, classname, processNameSuffix, callingUid, debug);
+                token, packageName, classname, processNameSuffix, callingUid, debug, ticket.getPath());
     }
 
     @Override

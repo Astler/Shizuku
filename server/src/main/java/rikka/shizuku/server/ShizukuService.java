@@ -193,6 +193,8 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
 
         ApkChangedObservers.start(ai.sourceDir, managerApkListener);
 
+        moe.shizuku.common.util.UserServiceRegistry.cleanup(MANAGER_APPLICATION_ID);
+
         BinderSender.register(this);
 
         mainHandler.post(() -> {

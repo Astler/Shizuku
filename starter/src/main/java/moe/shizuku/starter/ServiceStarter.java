@@ -1,6 +1,8 @@
 package moe.shizuku.starter;
 
 import android.content.IContentProvider;
+import android.ddm.DdmHandleAppName;
+import moe.shizuku.common.util.UserServiceRegistry;
 import android.os.Binder;
 import android.os.Build;
 import android.os.Bundle;
@@ -44,19 +46,19 @@ public class ServiceStarter {
 
     private static final String USER_SERVICE_CMD_FORMAT = "(CLASSPATH='%s' %s%s /system/bin " +
             "--nice-name='%s' moe.shizuku.starter.ServiceStarter " +
-            "--manager='%s' --token='%s' --package='%s' --class='%s' --uid=%d%s)&";
+            "--manager='%s' --token='%s' --package='%s' --class='%s' --uid=%d%s --fork-service-record='%s')&";
 
     // DeathRecipient will automatically be unlinked when all references to the
     // binder is dropped, so we hold the reference here.
     @SuppressWarnings("FieldCanBeLocal")
     private static IBinder shizukuBinder;
 
-    public static String commandForUserService(String appProcess, String managerApkPath, String managerPackageName, String token, String packageName, String classname, String processNameSuffix, int callingUid, boolean debug) {
+    public static String commandForUserService(String appProcess, String managerApkPath, String managerPackageName, String token, String packageName, String classname, String processNameSuffix, int callingUid, boolean debug, String recordPath) {
         String processName = String.format("%s:%s", packageName, processNameSuffix);
         return String.format(Locale.ENGLISH, USER_SERVICE_CMD_FORMAT,
                 managerApkPath, appProcess, debug ? (" " + DEBUG_ARGS) : "",
                 processName,
-                managerPackageName, token, packageName, classname, callingUid, debug ? (" " + "--debug-name=" + processName) : "");
+                managerPackageName, token, packageName, classname, callingUid, debug ? (" " + "--debug-name=" + processName) : "", recordPath);
     }
 
     private static String managerPackageName = BuildConfig.MANAGER_APPLICATION_ID;
@@ -69,6 +71,31 @@ public class ServiceStarter {
         for (String arg : args) {
             if (arg.startsWith("--manager=")) {
                 managerPackageName = arg.substring("--manager=".length());
+            }
+        }
+
+        String recordPath = null;
+        String launchToken = null;
+        String packageName = null;
+        String debugName = null;
+        int callingUid = 0;
+        for (String arg : args) {
+            if (arg.startsWith(UserServiceRegistry.RECORD_ARGUMENT)) {
+                recordPath = arg.substring(UserServiceRegistry.RECORD_ARGUMENT.length());
+            } else if (arg.startsWith("--token=")) launchToken = arg.substring(8);
+            else if (arg.startsWith("--package=")) packageName = arg.substring(10);
+            else if (arg.startsWith("--debug-name=")) debugName = arg.substring(13);
+            else if (arg.startsWith("--uid=")) callingUid = Integer.parseInt(arg.substring(6));
+        }
+        if (recordPath != null) {
+            try {
+                String name = debugName != null ? debugName : packageName + ":user_service";
+                DdmHandleAppName.setAppName(name, callingUid / 100000);
+                UserServiceRegistry.register(recordPath, managerPackageName, launchToken, name);
+            } catch (Exception e) {
+                Log.e(TAG, "Cannot register owned user-service process", e);
+                System.exit(1);
+                return;
             }
         }
 
