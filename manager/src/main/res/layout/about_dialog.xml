@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content">
 <androidx.constraintlayout.widget.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -38,13 +40,14 @@
 
     <TextView
         android:id="@+id/source_code"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
         android:textColor="?android:textColorSecondary"
         android:textSize="14sp"
         app:layout_constraintTop_toBottomOf="@id/version_name"
         app:layout_constraintStart_toStartOf="@id/version_name"
+        app:layout_constraintEnd_toEndOf="parent"
         tools:text="@string/about_view_source_code" />
 
     <com.google.android.material.button.MaterialButton
@@ -83,3 +86,4 @@
         app:layout_constraintEnd_toEndOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
+</ScrollView>

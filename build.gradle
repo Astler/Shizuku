@@ -33,3 +33,8 @@ ext {
     versionCode = gitCommitCount
     versionName = "${baseVersionName}${if (isBeta) "-beta" else ""}-thedjchi"
 }
+
+// One identity for the manager, starter, server and generated UI resources.
+ext.FORK_APP_NAME = providers.gradleProperty("FORK_APP_NAME").get()
+ext.FORK_APPLICATION_ID = providers.gradleProperty("FORK_APPLICATION_ID").get()
+ext.FORK_PERMISSION_PREFIX = "${FORK_APPLICATION_ID}.permission"

@@ -23,6 +23,8 @@ find_package(cxx REQUIRED CONFIG)
 add_executable(libshizuku.so
         starter.cpp misc.cpp selinux.cpp cgroup.cpp)
 
+target_compile_definitions(libshizuku.so PRIVATE FORK_APP_NAME="${FORK_APP_NAME}")
+
 target_link_libraries(libshizuku.so log cxx::cxx)
 
 if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")

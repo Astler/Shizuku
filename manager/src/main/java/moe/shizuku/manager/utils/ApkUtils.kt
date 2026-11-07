@@ -17,6 +17,7 @@ import com.reandroid.arsc.chunk.xml.ResXmlDocument
 import com.reandroid.arsc.chunk.xml.ResXmlElement
 import com.reandroid.archive.FileInputSource
 import com.reandroid.common.Namespace
+import moe.shizuku.manager.BuildConfig
 import moe.shizuku.manager.R
 import moe.shizuku.manager.ShizukuApplication
 import moe.shizuku.manager.utils.ApkSigner
@@ -24,7 +25,7 @@ import java.io.File
 
 private const val TAG = "ApkUtils"
 
-const val ORIGINAL_PACKAGE_NAME = "moe.shizuku.privileged.api"
+const val ORIGINAL_PACKAGE_NAME = BuildConfig.APPLICATION_ID
 
 private val app = ShizukuApplication.application
 private val appContext = ShizukuApplication.appContext

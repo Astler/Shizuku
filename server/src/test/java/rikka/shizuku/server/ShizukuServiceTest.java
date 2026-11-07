@@ -16,6 +16,9 @@ import static org.mockito.Mockito.when;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.os.Binder;
+import android.os.Bundle;
+import moe.shizuku.server.IShizukuApplication;
+import rikka.shizuku.ShizukuApiConstants;
 import android.os.Parcel;
 import android.os.RemoteException;
 import android.system.Os;
@@ -159,12 +162,53 @@ public class ShizukuServiceTest {
         permissions.when(() -> Android17Compat.revokeRuntimePermission(
                 CLIENT_PACKAGE, ServerConstants.PERMISSION, CLIENT_USER)).thenThrow(new RemoteException());
 
-        assertThrows(RemoteException.class, () -> service.updateFlagsForUid(
-                CLIENT_UID, ConfigManager.MASK_PERMISSION, 0));
+        service.updateFlagsForUid(CLIENT_UID, ConfigManager.MASK_PERMISSION, 0);
 
         verify(config).update(CLIENT_UID, null, ConfigManager.MASK_PERMISSION, 0);
         verify(userServices).removeUserServicesForPackage(CLIENT_PACKAGE);
         verify(userServices).removeUserServicesForPackage(sharedPackage);
+    }
+
+    @Test
+    public void grantUnknownRuntimePermissionStillAuthorizesClient() throws Exception {
+        ClientRecord client = new ClientRecord(CLIENT_UID, 1, null, CLIENT_PACKAGE, 13);
+        when(clients.findClients(CLIENT_UID)).thenReturn(Collections.singletonList(client));
+        PackageInfo info = new PackageInfo();
+        info.requestedPermissions = new String[]{ServerConstants.PERMISSION};
+        permissions.when(() -> Android17Compat.getPackageInfo(
+                CLIENT_PACKAGE, PackageManager.GET_PERMISSIONS, CLIENT_USER)).thenReturn(info);
+        permissions.when(() -> Android17Compat.grantRuntimePermission(
+                CLIENT_PACKAGE, ServerConstants.PERMISSION, CLIENT_USER))
+                .thenThrow(new IllegalArgumentException("Unknown permission"));
+
+        service.updateFlagsForUid(CLIENT_UID, ConfigManager.MASK_PERMISSION, ConfigManager.FLAG_ALLOWED);
+
+        assertTrue(client.allowed);
+        verify(config).update(CLIENT_UID, null, ConfigManager.MASK_PERMISSION, ConfigManager.FLAG_ALLOWED);
+    }
+
+    @Test
+    public void permissionReplyCompletesWhenLegacyPermissionIsUndeclared() throws Exception {
+        IShizukuApplication application = mock(IShizukuApplication.class);
+        ClientRecord client = new ClientRecord(CLIENT_UID, 7, application, CLIENT_PACKAGE, 13);
+        when(clients.findClients(CLIENT_UID)).thenReturn(Collections.singletonList(client));
+        PackageInfo info = new PackageInfo();
+        info.requestedPermissions = new String[]{ServerConstants.PERMISSION};
+        permissions.when(() -> Android17Compat.getPackageInfo(
+                CLIENT_PACKAGE, PackageManager.GET_PERMISSIONS, CLIENT_USER)).thenReturn(info);
+        permissions.when(() -> Android17Compat.grantRuntimePermission(
+                CLIENT_PACKAGE, ServerConstants.PERMISSION, CLIENT_USER))
+                .thenThrow(new SecurityException("Permission not declared"));
+        Bundle decision = mock(Bundle.class);
+        when(decision.getBoolean(ShizukuApiConstants.REQUEST_PERMISSION_REPLY_ALLOWED)).thenReturn(true);
+
+        service.dispatchPermissionConfirmationResult(CLIENT_UID, 7, 42, decision);
+
+        assertTrue(client.allowed);
+        verify(application).dispatchRequestPermissionResult(org.mockito.ArgumentMatchers.eq(42),
+                org.mockito.ArgumentMatchers.any(Bundle.class));
+        verify(config).update(CLIENT_UID, Collections.singletonList(CLIENT_PACKAGE),
+                ConfigManager.MASK_PERMISSION, ConfigManager.FLAG_ALLOWED);
     }
 
     @Test

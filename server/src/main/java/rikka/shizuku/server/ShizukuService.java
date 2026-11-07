@@ -91,7 +91,7 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
         } catch (Throwable tr) {
             LOGGER.w("Couldn't get manager package name from CLASSPATH", tr);
         }
-        MANAGER_APPLICATION_ID = packageName;
+        MANAGER_APPLICATION_ID = packageName != null ? packageName : moe.shizuku.server.BuildConfig.MANAGER_APPLICATION_ID;
     }
 
 
@@ -344,7 +344,7 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
             return;
         }
 
-        Intent intent = new Intent(ServerConstants.REQUEST_PERMISSION_ACTION)
+        Intent intent = new Intent(MANAGER_APPLICATION_ID + ".intent.action.REQUEST_PERMISSION")
                 .setPackage(MANAGER_APPLICATION_ID)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NEW_DOCUMENT)
                 .putExtra("uid", callingUid)
@@ -398,13 +398,24 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
                     continue;
                 }
 
-                int deviceId = 0;//Context.DEVICE_ID_DEFAULT
-                if (allowed) {
-                    Android17Compat.grantRuntimePermission(packageName, PERMISSION, userId);
-                } else {
-                    Android17Compat.revokeRuntimePermission(packageName, PERMISSION, userId);
-                }
+                syncClientRuntimePermission(packageName, userId, allowed);
             }
+        }
+    }
+
+    private void syncClientRuntimePermission(String packageName, int userId, boolean allowed) {
+        // API_V23 remains a requested-permission discovery marker. It is not
+        // declared by this fork, so Android may reject both grant and revoke.
+        // Config and live ClientRecords are updated first and remain authoritative;
+        // a missing framework permission must not abort a reply or later packages.
+        try {
+            if (allowed) {
+                Android17Compat.grantRuntimePermission(packageName, PERMISSION, userId);
+            } else {
+                Android17Compat.revokeRuntimePermission(packageName, PERMISSION, userId);
+            }
+        } catch (RemoteException | RuntimeException e) {
+            LOGGER.w(e, "Unable to sync optional client runtime permission for %s", packageName);
         }
     }
 
@@ -479,11 +490,7 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
                     continue;
                 }
 
-                if (allowed) {
-                    Android17Compat.grantRuntimePermission(packageName, PERMISSION, userId);
-                } else {
-                    Android17Compat.revokeRuntimePermission(packageName, PERMISSION, userId);
-                }
+                syncClientRuntimePermission(packageName, userId, allowed);
             }
         }
     }

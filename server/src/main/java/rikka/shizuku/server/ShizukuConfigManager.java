@@ -159,6 +159,10 @@ public class ShizukuConfigManager extends ConfigManager {
                 }
 
                 int uid = pi.applicationInfo.uid;
+                // Once recorded, the user's decision is authoritative. API_V23 is
+                // intentionally undeclared here and normally checks as DENIED.
+                // Framework grants are only imported for previously unknown UIDs.
+                if (findLocked(uid) != null) continue;
                 boolean allowed;
                 try {
                     allowed = Android17Compat.checkPermission(PERMISSION, uid) == PackageManager.PERMISSION_GRANTED;
@@ -232,7 +236,9 @@ public class ShizukuConfigManager extends ConfigManager {
 
     public void update(int uid, List<String> packages, int mask, int values) {
         synchronized (this) {
-            updateLocked(uid, packages, mask, values);
+            // Remember package ownership even for manager toggles of a new UID,
+            // otherwise the next startup would discard an empty package list.
+            updateLocked(uid, packages != null ? packages : PackageManagerApis.getPackagesForUidNoThrow(uid), mask, values);
         }
     }
 

@@ -6,6 +6,7 @@ plugins {
 android {
     namespace = "rikka.shizuku.shell"
     defaultConfig {
+        buildConfigField "String", "FORK_APP_NAME", groovy.json.JsonOutput.toJson(rootProject.ext.FORK_APP_NAME)
         versionCode = rootProject.ext.versionCode
         versionName = rootProject.ext.versionName
         buildConfigField "String", "MANAGER_APPLICATION_ID", "\"${project(':manager').android.defaultConfig.applicationId}\""

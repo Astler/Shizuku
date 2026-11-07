@@ -94,7 +94,7 @@ public class ShizukuShellLoader {
                             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                             .addFlags(Intent.FLAG_ACTIVITY_NEW_DOCUMENT)
                             .putExtra("data", data),
-                    "Request binder from Shizuku"
+                    "Request binder from " + BuildConfig.FORK_APP_NAME
             );
 
             am.startActivityAsUser(null, callingPackage, activityIntent, null, null, null, 0, 0, null, null, Os.getuid() / 100000);
@@ -117,7 +117,7 @@ public class ShizukuShellLoader {
                     .invoke(null, args, callingPackage, binder, handler);
         } catch (ClassNotFoundException tr) {
             System.err.println("Class not found");
-            System.err.println("Make sure you have Shizuku v12.0.0 or above installed");
+            System.err.println("Make sure you have " + BuildConfig.FORK_APP_NAME + " installed");
             System.err.flush();
             System.exit(1);
         } catch (Throwable tr) {
@@ -161,10 +161,10 @@ public class ShizukuShellLoader {
         handler.postDelayed(() -> abort(
                 String.format(
                         "Request timeout. " +
-                        "If you are using stealth mode, MANAGER_APPLICATION_ID may not be correct. Please set this environment variable in rish to the package name of Shizuku.\n" +
-                        "Otherwise, the connection between the current app (%1$s) and Shizuku app may be blocked by your system. " +
-                        "Please disable all battery optimization features for both current app (%1$s) and Shizuku app.",
-                        packageName)
+                        "If you are using stealth mode, MANAGER_APPLICATION_ID may not be correct. Please set this environment variable in rish to the package name of %2$s.\n" +
+                        "Otherwise, the connection between the current app (%1$s) and %2$s may be blocked by your system. " +
+                        "Please disable all battery optimization features for both current app (%1$s) and %2$s.",
+                        packageName, BuildConfig.FORK_APP_NAME)
         ), 5000);
 
         Looper.loop();

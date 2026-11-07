@@ -274,18 +274,10 @@ class StealthTutorialActivity : AppBarActivity() {
         get() = (this * Resources.getSystem().displayMetrics.density).toInt()
 }
 
+// Permission ownership is intentionally unavailable for the legacy API marker.
+// Clients should check the binder, which also works with renamed managers.
 private const val codeSnippet = """
-import android.content.Context
-import rikka.shizuku.ShizukuProvider
+import rikka.shizuku.Shizuku
 
-private fun Context.shizukuPermission() =
-    runCatching {
-        packageManager.getPermissionInfo(ShizukuProvider.PERMISSION, 0)
-    }.getOrNull()
-
-fun Context.isShizukuInstalled() =
-    shizukuPermission() != null
-
-fun Context.getShizukuPackageName() =
-    shizukuPermission()?.packageName
+fun isAccessServiceRunning(): Boolean = Shizuku.pingBinder()
 """

@@ -11,15 +11,40 @@ plugins {
     id "dev.rikka.tools.materialthemebuilder"
 }
 
+// Source XML uses @FORK_APP_NAME@ in every locale, including notifications and
+// shortcuts. Generate the complete resource tree so resource overlays cannot
+// accidentally restore upstream branding. No protocol identifiers are rewritten.
+def forkResources = tasks.register("generateForkResources", Sync) {
+    inputs.property("forkAppName", rootProject.ext.FORK_APP_NAME)
+    from("src/main/res")
+    into(layout.buildDirectory.dir("generated/forkResources"))
+    filteringCharset = "UTF-8"
+    def appName = rootProject.ext.FORK_APP_NAME
+        .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        .replace("\\", "\\\\").replace("'", "\\'").replace('"', '\\"')
+    filesMatching("**/*.xml") {
+        filter { line -> line.replace("@FORK_APP_NAME@", appName) }
+    }
+}
+
+def forkNotices = tasks.register("generateForkNotices", Sync) {
+    from(rootProject.projectDir) { include "NOTICE", "LICENSE" }
+    into(layout.buildDirectory.dir("generated/forkNotices"))
+}
+
 android {
     namespace = "moe.shizuku.manager"
+    sourceSets.main.res.setSrcDirs([])
+    sourceSets.main.assets.srcDir(layout.buildDirectory.dir("generated/forkNotices"))
     defaultConfig {
-        applicationId = "moe.shizuku.privileged.api"
+        applicationId = rootProject.ext.FORK_APPLICATION_ID
+        manifestPlaceholders.forkPermissionPrefix = rootProject.ext.FORK_PERMISSION_PREFIX
+        buildConfigField "String", "FORK_PERMISSION_PREFIX", "\"${rootProject.ext.FORK_PERMISSION_PREFIX}\""
         versionCode = rootProject.ext.versionCode
         versionName = rootProject.ext.versionName
         externalNativeBuild {
             cmake {
-                arguments = ["-DANDROID_STL=none"]
+                arguments = ["-DANDROID_STL=none", "-DFORK_APP_NAME=${rootProject.ext.FORK_APP_NAME}"]
             }
         }
     }
@@ -116,6 +141,8 @@ def collapseReleaseResourceNames = tasks.register("collapseReleaseResourceNames"
     }
 }
 
+tasks.named("preBuild").configure { dependsOn(forkNotices) }
+
 afterEvaluate {
     tasks.getByName("optimizeReleaseResources").finalizedBy(collapseReleaseResourceNames)
     tasks.getByName("preReleaseBuild").dependsOn(":shell:assembleRelease")
@@ -123,8 +150,9 @@ afterEvaluate {
 }
 
 android.applicationVariants.configureEach { variant ->
+    variant.registerGeneratedResFolders(files(forkResources.map { it.destinationDir }).builtBy(forkResources))
     variant.outputs.configureEach {
-        outputFileName = "shizuku-v${variant.versionName}-${variant.name}.apk"
+        outputFileName = "${rootProject.ext.FORK_APPLICATION_ID}-v${variant.versionName}-${variant.name}.apk"
 
         variant.assembleProvider.get().doLast {
             def outDir = new File(rootDir, "out")
