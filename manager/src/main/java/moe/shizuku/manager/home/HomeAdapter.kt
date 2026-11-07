@@ -1,5 +1,6 @@
 package moe.shizuku.manager.home
 
+import moe.shizuku.manager.DistributionFeatures
 import android.os.Build
 import kotlinx.coroutines.CoroutineScope
 import moe.shizuku.manager.management.AppsViewModel
@@ -28,7 +29,6 @@ class HomeAdapter(private val homeModel: HomeViewModel, private val appsModel: A
         private const val ID_LEARN_MORE = 6L
         private const val ID_ADB_PERMISSION_LIMITED = 7L
         private const val ID_AUTOMATION = 8L
-        private const val ID_STEALTH = 9L
     }
 
     override fun onCreateCreatorPool(): IndexCreatorPool {
@@ -68,7 +68,7 @@ class HomeAdapter(private val homeModel: HomeViewModel, private val appsModel: A
         }
         addItem(AutomationViewHolder.CREATOR, null, ID_AUTOMATION)
 
-        addItem(StealthViewHolder.CREATOR, null, ID_STEALTH)
+        DistributionFeatures.addHomeItems(this)
 
         addItem(LearnMoreViewHolder.CREATOR, null, ID_LEARN_MORE)
         notifyDataSetChanged()

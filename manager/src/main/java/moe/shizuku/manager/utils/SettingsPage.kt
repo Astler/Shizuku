@@ -1,6 +1,5 @@
 package moe.shizuku.manager.utils
 
-import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -8,8 +7,6 @@ import android.os.Build
 import android.provider.Settings
 import android.service.quicksettings.TileService
 import android.util.Log
-import moe.shizuku.manager.adb.AdbPairingAccessibilityService
-import moe.shizuku.manager.service.WatchdogService
 
 sealed class SettingsPage(
     private val action: String,
@@ -68,17 +65,10 @@ sealed class SettingsPage(
         }
 
         object NotificationSettings : Notifications()
-        object NotificationChannel : Notifications() {
-            override fun buildIntent(context: Context): Intent {
-                return super.buildIntent(context).apply {
-                    putExtra(Settings.EXTRA_CHANNEL_ID, WatchdogService.CRASH_CHANNEL_ID)
-                }
-            }
-        }
+
     }
 
     object InternetPanel : SettingsPage(Settings.Panel.ACTION_INTERNET_CONNECTIVITY)
-    object Accessibility : SettingsPage(Settings.ACTION_ACCESSIBILITY_SETTINGS)
 
     protected val defaultFlags =
         Intent.FLAG_ACTIVITY_NEW_TASK or

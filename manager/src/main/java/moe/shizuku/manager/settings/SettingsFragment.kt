@@ -37,6 +37,7 @@ import kotlinx.coroutines.launch
 import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.CancellableContinuation
+import moe.shizuku.manager.DistributionFeatures
 import moe.shizuku.manager.R
 import moe.shizuku.manager.ShizukuSettings
 import moe.shizuku.manager.ShizukuSettings.Keys.*
@@ -65,7 +66,6 @@ import java.util.*
 class SettingsFragment : PreferenceFragmentCompat(), SharedPreferences.OnSharedPreferenceChangeListener {
 
     private lateinit var startOnBootPreference: TwoStatePreference
-    private lateinit var watchdogPreference: TwoStatePreference
     private lateinit var tcpModePreference: TwoStatePreference
     private lateinit var tcpPortPreference: EditTextPreference
     private lateinit var languagePreference: ListPreference
@@ -74,11 +74,8 @@ class SettingsFragment : PreferenceFragmentCompat(), SharedPreferences.OnSharedP
     private lateinit var nightModePreference: IntegerSimpleMenuPreference
     private lateinit var blackNightThemePreference: TwoStatePreference
     private lateinit var useSystemColorPreference: TwoStatePreference
-    private lateinit var updateModePreference: IntegerSimpleMenuPreference
     private lateinit var helpPreference: Preference
     private lateinit var reportBugPreference: Preference
-    private lateinit var legacyPairingPreference: TwoStatePreference
-    private lateinit var advancedCategory: PreferenceCategory
 
     private lateinit var batteryOptimizationListener: ActivityResultLauncher<Intent>
     private var batteryOptimizationContinuation: CancellableContinuation<Boolean>? = null
@@ -99,7 +96,6 @@ class SettingsFragment : PreferenceFragmentCompat(), SharedPreferences.OnSharedP
         setPreferencesFromResource(R.xml.settings, null)
 
         startOnBootPreference = findPreference(KEY_START_ON_BOOT)!!
-        watchdogPreference = findPreference(KEY_WATCHDOG)!!
         tcpModePreference = findPreference(KEY_TCP_MODE)!!
         tcpPortPreference = findPreference(KEY_TCP_PORT)!!
         languagePreference = findPreference(KEY_LANGUAGE)!!
@@ -108,11 +104,8 @@ class SettingsFragment : PreferenceFragmentCompat(), SharedPreferences.OnSharedP
         nightModePreference = findPreference(KEY_NIGHT_MODE)!!
         blackNightThemePreference = findPreference(KEY_BLACK_NIGHT_THEME)!!
         useSystemColorPreference = findPreference(KEY_USE_SYSTEM_COLOR)!!
-        updateModePreference = findPreference(KEY_UPDATE_MODE)!!
         helpPreference = findPreference(KEY_HELP)!!
         reportBugPreference = findPreference(KEY_REPORT_BUG)!!
-        legacyPairingPreference = findPreference(KEY_LEGACY_PAIRING)!!
-        advancedCategory = findPreference(KEY_CATEGORY_ADVANCED)!!
 
         batteryOptimizationListener = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
             val accepted = SettingsHelper.isIgnoringBatteryOptimizations(requireContext())
@@ -158,22 +151,6 @@ class SettingsFragment : PreferenceFragmentCompat(), SharedPreferences.OnSharedP
                 isEnabled = false
                 isChecked = false
                 summary = context.getString(R.string.settings_start_on_boot_summary)
-            }
-        }
-
-        watchdogPreference.apply {
-            isChecked = ShizukuSettings.isWatchdogRunning()
-
-            setOnPreferenceChangeListener { _, newValue ->
-                if (newValue is Boolean) {
-                    maybeToggleBatterySensitiveSetting(newValue) { result ->
-                        if (result) {
-                            ShizukuSettings.setWatchdog(context, newValue)
-                            isChecked = newValue
-                        }
-                    }
-                }
-                false
             }
         }
 
@@ -304,7 +281,6 @@ class SettingsFragment : PreferenceFragmentCompat(), SharedPreferences.OnSharedP
             } else isVisible = false
         }
 
-        updateModePreference.value = ShizukuSettings.getUpdateMode()
 
         helpPreference.setOnPreferenceClickListener {
             CustomTabsHelper.launchUrlOrCopy(context, context.getString(R.string.help_url))
@@ -316,11 +292,9 @@ class SettingsFragment : PreferenceFragmentCompat(), SharedPreferences.OnSharedP
             true
         }
 
-        legacyPairingPreference.apply {
-            isVisible = !EnvironmentUtils.isTelevision()
+        DistributionFeatures.configureSettings(this) { newValue, onResult ->
+            maybeToggleBatterySensitiveSetting(newValue, onResult)
         }
-
-        advancedCategory.isVisible = legacyPairingPreference.isVisible
     }
 
     override fun onResume() {
@@ -336,9 +310,7 @@ class SettingsFragment : PreferenceFragmentCompat(), SharedPreferences.OnSharedP
     }
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences, key: String?) {
-        when (key) {
-            KEY_WATCHDOG -> watchdogPreference.isChecked = ShizukuSettings.isWatchdogRunning()
-        }
+        DistributionFeatures.onPreferenceChanged(this, key)
     }
 
     override fun onCreateRecyclerView(

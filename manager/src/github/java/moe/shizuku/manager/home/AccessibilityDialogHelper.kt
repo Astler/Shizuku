@@ -14,6 +14,7 @@ import moe.shizuku.manager.R
 import moe.shizuku.manager.adb.AdbPairingAccessibilityService
 import moe.shizuku.manager.utils.SettingsHelper
 import moe.shizuku.manager.utils.SettingsPage
+import moe.shizuku.manager.utils.AccessibilitySettingsPage
 
 fun Context.showAccessibilityDialog() {
     val hasWriteSecureSettings = (checkSelfPermission(WRITE_SECURE_SETTINGS) == PackageManager.PERMISSION_GRANTED)
@@ -60,7 +61,7 @@ private fun Context.showEnableDialog() {
         .setTitle(R.string.dialog_adb_pairing_title)
         .setMessage(R.string.dialog_adb_pairing_accessibility_enable)
         .setPositiveButton(R.string.enable) { _, _ ->
-            SettingsPage.Accessibility.launch(this)
+            AccessibilitySettingsPage.launch(this)
         }.setNegativeButton(android.R.string.cancel, null)
         .show()
 }
