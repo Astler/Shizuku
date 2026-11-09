@@ -3,14 +3,16 @@ package moe.shizuku.manager.adb
 import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
-import com.android.org.conscrypt.Conscrypt
 import java.io.Closeable
 import java.io.DataInputStream
 import java.io.DataOutputStream
+import java.io.InputStream
+import java.io.OutputStream
 import java.net.Socket
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import javax.net.ssl.SSLSocket
+
+internal class PairingTlsConnection(val input: InputStream, val output: OutputStream, val keyMaterial: ByteArray)
 
 private const val TAG = "AdbPairClient"
 
@@ -204,16 +206,14 @@ class AdbPairingClient(private val host: String, private val port: Int, private 
         socket = Socket(host, port)
         socket.tcpNoDelay = true
 
-        val sslContext = key.sslContext
-        val sslSocket = sslContext.socketFactory.createSocket(socket, host, port, true) as SSLSocket
-        sslSocket.startHandshake()
+        val connection = AdbTls.connect(socket, host, port, key, kExportedKeyLabel, kExportedKeySize)
         Log.d(TAG, "Handshake succeeded.")
 
-        inputStream = DataInputStream(sslSocket.inputStream)
-        outputStream = DataOutputStream(sslSocket.outputStream)
+        inputStream = DataInputStream(connection.input)
+        outputStream = DataOutputStream(connection.output)
 
         val pairCodeBytes = pairCode.toByteArray()
-        val keyMaterial = Conscrypt.exportKeyingMaterial(sslSocket, kExportedKeyLabel, null, kExportedKeySize)
+        val keyMaterial = connection.keyMaterial
         val passwordBytes = ByteArray(pairCode.length + keyMaterial.size)
         pairCodeBytes.copyInto(passwordBytes)
         keyMaterial.copyInto(passwordBytes, pairCodeBytes.size)

@@ -6,7 +6,6 @@ plugins {
     id "com.android.application"
     id "org.jetbrains.kotlin.android"
     id "org.jetbrains.kotlin.plugin.serialization"
-    id "dev.rikka.tools.refine"
     id "dev.rikka.tools.autoresconfig"
     id "dev.rikka.tools.materialthemebuilder"
 }
@@ -208,7 +207,8 @@ dependencies {
     implementation project(":api")
     implementation project(":provider")
 
-    implementation libs.hidden.compat
+    githubImplementation libs.hidden.compat
+    // R8 also needs the shell server's framework types; these stubs are never packaged.
     compileOnly libs.hidden.stub
 
     implementation "androidx.browser:browser:1.8.0"
@@ -226,7 +226,7 @@ dependencies {
     implementation "com.github.topjohnwu.libsu:core:6.0.0"
 
     implementation "dev.rikka.rikkax.appcompat:appcompat:1.6.1"
-    implementation "dev.rikka.rikkax.compatibility:compatibility:2.0.0"
+    githubImplementation "dev.rikka.rikkax.compatibility:compatibility:2.0.0"
     implementation "dev.rikka.rikkax.core:core-ktx:1.4.1"
     implementation "dev.rikka.rikkax.material:material:2.7.2"
     implementation "dev.rikka.rikkax.material:material-preference:2.0.0"
@@ -244,7 +244,8 @@ dependencies {
     implementation "org.bouncycastle:bcpkix-jdk18on:1.80"
     githubImplementation "org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0"
     implementation "org.lsposed.libcxx:libcxx:27.0.12077973"
-    implementation "org.lsposed.hiddenapibypass:hiddenapibypass:6.1"
+    githubImplementation "org.lsposed.hiddenapibypass:hiddenapibypass:6.1"
+    playImplementation "org.bouncycastle:bctls-jdk18on:1.80"
 
     implementation "me.zhanghai.android.appiconloader:appiconloader:1.5.0"
 }

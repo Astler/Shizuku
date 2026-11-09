@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Build
-import android.os.SystemProperties
 import moe.shizuku.manager.ShizukuApplication
 import moe.shizuku.manager.ShizukuSettings
 import com.topjohnwu.superuser.Shell
@@ -42,8 +41,7 @@ object EnvironmentUtils {
     }
 
     fun getAdbTcpPort(): Int {
-        var port = SystemProperties.getInt("service.adb.tcp.port", -1)
-        if (port == -1) port = SystemProperties.getInt("persist.adb.tcp.port", -1)
+        var port = AppProcessApis.getAdbTcpPort()
         if (port == -1 && isTelevision() && !isTlsSupported()) port = ShizukuSettings.getTcpPort()
         return port
     }

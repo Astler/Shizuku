@@ -77,6 +77,9 @@ class AdbKey(private val adbKeyStore: AdbKeyStore, name: String) {
     private val publicKey: RSAPublicKey
     private val certificate: X509Certificate
 
+    internal val pairingPrivateKey: RSAPrivateKey get() = privateKey
+    internal val pairingCertificate: X509Certificate get() = certificate
+
     init {
         this.encryptionKey = getOrCreateEncryptionKey() ?: error("Failed to generate encryption key with AndroidKeyManager.")
 
