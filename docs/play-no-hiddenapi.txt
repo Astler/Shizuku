@@ -1,0 +1,269 @@
+Play app-process hidden API removal — 2026-11-09
+
+Status and delivery
+
+Part A is implemented. Part B is assessed and deferred as permitted by the task.
+This does not claim that Play's warning is fully resolved: server-side hidden:compat
+code and the compat/Refine runtime dependencies still ship in the dependency graph.
+No device was accessed, modified, or uninstalled.
+
+Base: master, d6ef9406. Requested branch: feat/play-no-hiddenapi.
+The sandbox rejected creation of .git/refs/heads/feat/play-no-hiddenapi.lock with
+"Operation not permitted". The working tree remains on master; no commits exist.
+Delivery is three ordered patches and a commit script in out/play-no-hiddenapi/.
+The script creates the requested branch and commits each logical step. It supports
+this already-edited tree and a clean checkout of the same base.
+
+Logical commits:
+1. fix(play): isolate bypass and replace app-process hidden API paths
+2. feat(server): expose manager system APIs over authenticated binder transactions
+3. docs: record hidden API assessment and reproducible dex audit
+
+Implementation
+
+- HiddenApiBypass 6.1 is githubImplementation only. Application startup calls a
+  flavor-specific AppProcessApis: GitHub still exempts all hidden APIs on API 28+;
+  Play initialization is a no-op.
+- GitHub ShizukuSystemApis is moved unchanged, byte for byte, to src/github.
+  Play uses primitive Parcel requests on the existing Shizuku binder, without
+  SystemServiceBinder hooks, ServiceManager lookup, or hidden framework objects.
+- Play keeps owner-only users, denied permission checks, empty package lists,
+  and no-op permission mutations when the state machine says the server is down.
+  It also clears its user cache in that case. RPC failures for package/permission
+  operations remain errors; user enumeration failures return the owner fallback.
+- User-list RPC sends ID/name pairs, never hidden UserInfo parcelables. Package
+  lists use the existing ParcelableListSlice implementation to support large lists.
+- Runtime permission RPC uses existing Android17Compat, preserving its Android 17
+  device-ID/signature handling and the older compat version branches.
+- ADB port discovery and MIUI tutorial detection use /system/bin/getprop under the
+  app UID in Play, so they also work before the server starts. No su is requested.
+- Pairing uses public SSLSockets.exportKeyingMaterial on Android 12+. On Android 11,
+  a Play-only Bouncy Castle bctls-jdk18on:1.80 client provides mutual TLS 1.3 and the
+  same 64-byte exporter with the existing "adb-label\0" label and null context.
+  It uses the existing RSA key/certificate and SPAKE2 peer authentication. The BC
+  version aligns with the existing bcpkix dependency; no provider is installed
+  globally. GitHub retains its original platform Conscrypt pairing path.
+- The manager Refine plugin is removed because manager code no longer uses alias
+  casts. It also avoids rewriting signed BC jars in JVM tests. Server, starter,
+  and server-shared still use their existing plugin/runtime configuration.
+- Manager's direct compat and DeviceCompatibility dependencies are GitHub-only.
+  Server/starter still pull compat transitively into both flavors. Compile-only
+  hidden stubs remain available to R8 for linking the embedded server's types;
+  the stubs are not packaged.
+- Public AIDL, API version/patch version, rebrand identifiers, Android 17 helpers,
+  manifests, and release obfuscation rules are unchanged. No library was copied,
+  shaded, relocated, renamed, or newly obfuscated to avoid detection.
+
+New private protocol extensions
+
+Descriptor: moe.shizuku.server.IShizukuService, unchanged.
+Every reply begins with the usual Binder exception header.
+
+10002 getUsers
+  Request: no arguments.
+  Reply: count:int, then repeated (id:int, name:String).
+10003 getInstalledPackages
+  Request: flags:long, userId:int.
+  Reply: ParcelableListSlice<PackageInfo>.
+10004 checkRuntimePermission
+  Request: packageName:String, permissionName:String, userId:int.
+  Reply: PackageManager permission result:int.
+10005 grantRuntimePermission
+10006 revokeRuntimePermission
+  Request: packageName:String, permissionName:String, userId:int.
+  Reply: no payload after the exception header.
+
+All five enforce the descriptor and existing manager UID/app-ID authorization
+before reading arguments or clearing Binder identity. Identity is restored in a
+finally block. No public transaction was changed or renumbered; 10001 remains
+getApplications. api/aidl and all other API submodule files are unchanged. Clients
+using dev.rikka.shizuku:api:13.1.5 retain the existing wire protocol.
+
+Restart the bundled server after installing this manager update. An older/upstream
+server will not implement 10002–10006; Play never falls back to app-process hidden
+calls. Unknown transactions produce an explicit restart error, except user listing,
+which retains its owner fallback. Compatibility with existing third-party clients
+does not imply these new manager operations work with older servers.
+
+Manager-process hidden API audit
+
+Inspected manager main/play/github Kotlin and Java, JNI class lookups, manager
+calls into shared modules, and the directly used Rikka compatibility helpers.
+
+Original call sites and disposition:
+1. ShizukuApplication companion init: HiddenApiBypass.setHiddenApiExemptions.
+   GitHub-only AppProcessApis.initialize; absent from Play.
+2. ShizukuSystemApis init: SystemServiceBinder's ServiceManager lookup/wrapper.
+   GitHub-only; Play never initializes the listener or wraps hidden AIDL interfaces.
+3. ShizukuSystemApis.getUsers: UserManagerApis/IUserManager and UserInfo fields.
+   Play RPC 10002, primitive result only.
+4. ShizukuSystemApis.getInstalledPackages: InstalledPackagesCompat reflection on
+   ActivityThread, getInstalledPackagesAsUser, compat Services/IPackageManager,
+   and framework ParceledListSlice/PackageInfoList return values.
+   Play RPC 10003; reflection executes in the server.
+5. ShizukuSystemApis.checkPermission/grantRuntimePermission/revokeRuntimePermission:
+   PermissionManagerApis and hidden package/permission managers.
+   Play RPCs 10004–10006, through Android17Compat in the server.
+6. EnvironmentUtils.getAdbTcpPort: android.os.SystemProperties.getInt (two keys).
+   Play uses getprop; GitHub retains the original property calls.
+7. AdbPairingClient.setupTlsConnection: com.android.org.conscrypt.Conscrypt exporter.
+   Play uses public platform TLS or the public BC TLS API as described above.
+8. AdbPairingTutorialActivity and ShellTutorialActivity: DeviceCompatibility.isMiui
+   indirectly called SystemProperties.get. Play uses getprop for the same property;
+   GitHub retains DeviceCompatibility.
+
+No additional manager source Refine calls, IPackageManager/IUserManager references,
+or reflection on hidden Android classes were found. Compiled Play manager classes
+also have no references to the audited hidden types; evidence is in
+out/play-no-hiddenapi/manager-api-audit.txt. Rikka ResourceUtils/ClipboardUtils
+use public Resources/ClipboardManager APIs in the inspected calls.
+The API module's SystemServiceHelper reflection remains available as library code,
+but the Play manager has no caller. Shared OsUtils.SELinux and the hidden APIs in
+Service/UserService/ServiceStarter are server or app_process entry paths, not
+manager app-process calls. The manager's use of server workerHandler uses only
+public HandlerThread/Handler APIs. JNI lookups register this app's native classes.
+
+Part B assessment and next implementation
+
+Technically feasible with compileOnly hidden stubs and purpose-built server calls,
+but not a contained dependency replacement. Current direct consumers comprise
+10 production files: server/{BinderSender,ShizukuConfigManager,ShizukuService,
+ShizukuUserServiceManager,util/Android17Compat,util/InstalledPackagesCompat},
+api/server-shared/{Service,UserService,UserServiceManager}, and starter/ServiceStarter.
+Three existing server test files also mock compat entry points. The change
+crosses the API submodule and roughly four module/plugin dependency declarations.
+
+Estimated follow-up: approximately 20–30 changed/new files, 700–1200 lines of
+service/signature adapters, stubs and focused tests, about 2–4 engineering days
+plus the Android device matrix. This is an estimate, not completed work.
+
+The inspected published 4.4.0 sources contain behavior that must be preserved:
+- Package APIs switch int flags to long flags on Android 13.
+- Permission checks route via IPermissionManager on Android 11, back through
+  IPackageManager on Android 12+, plus the existing Android 17 reflection fallback.
+- Android 14 base/QPR2/QPR3 grant/revoke signatures differ: no device ID, int device
+  ID, or persistent String ID; revocation also has reason/no-reason variants.
+- User enumeration and information, activity launches across work profiles,
+  process and UID observers, provider acquisition/release, and service lookup
+  caching/death need explicit implementations, not dependency deletion.
+- Observer signatures evolve (UID sequence/capability and process-start callbacks).
+- UserService's ContextHidden/UserHandleHidden aliases require actual framework
+  signatures via compile-only stubs or narrowly scoped server reflection. Casting
+  to a fictitious alias class without Refine is invalid.
+- minSdk remains 24: although the requested matrix is Android 11–17, the older
+  ActivityManager/provider and observer branches cannot silently be discarded.
+- Existing Android17Compat and InstalledPackagesCompat safeguards must survive.
+
+Plan: introduce narrowly scoped, application-owned system-service entry points
+using compileOnly stub types; adapt only the required operations and preserve
+each version branch; implement observer subclasses; replace UserService aliases;
+move tests from compat mocks to the new boundary; remove compat/Refine from server,
+server-shared and starter together; verify both runtime dependency graphs and all
+dex (including the rish asset). No copying a runtime library under another package.
+
+Assessment sources:
+https://repo.maven.apache.org/maven2/dev/rikka/hidden/compat/4.4.0/compat-4.4.0-sources.jar
+https://github.com/RikkaW/HiddenApi
+https://developer.android.com/reference/android/net/ssl/SSLSockets#exportKeyingMaterial(javax.net.ssl.SSLSocket,java.lang.String,byte[],int)
+https://repo.maven.apache.org/maven2/org/bouncycastle/bctls-jdk18on/1.80/bctls-jdk18on-1.80-sources.jar
+
+Verification and dex results
+
+Environment: Java 21; CMake 3.31.10 and Ninja 1.13.2 installed only under /private/tmp
+because the supplied tool directories were initially absent. PATH:
+/private/tmp/shizuku-build-tools/cmake/data/bin:/private/tmp/shizuku-ninja/bin:$PATH
+
+Passed together:
+./gradlew -Pkotlin.compiler.execution.strategy=in-process \
+  :manager:assembleGithubRelease :manager:assemblePlayRelease \
+  :manager:bundlePlayRelease test
+
+The compiler property avoids Kotlin daemon writes outside the sandbox. Normal
+resource/deprecation warnings remain. Log: out/play-no-hiddenapi/build-and-test.log.
+All current test variants passed: server debug/release 29 each; manager GitHub
+debug/release 12 each; manager Play debug/release 14 each. No failed/skipped tests.
+New coverage: all five transaction access checks; cross-user manager enumeration;
+primitive user replies; long flags; permission argument ordering/compat routing;
+identity restoration after failure; mutual TLS 1.3 with a separate JDK TLS stack,
+client certificate authentication and the NUL-terminated ADB exporter label.
+The TLS test is a host interoperability test, not an Android device pairing test.
+
+tools/verify-distributions.py passed on the signed APKs: Play manifest restrictions,
+rebrand permission constraints, source isolation and privacy entries remain intact.
+Runtime dependency listings confirm no hiddenapibypass module in Play, and that
+compat:4.4.0/refine runtime:4.4.0 remain via server-shared/starter/server. GitHub
+retains hiddenapibypass:6.1. Files: out/play-no-hiddenapi/*-runtime-dependencies.txt.
+
+Dexdump 37.0.0 inspected every dex, including assets/rish_shizuku.dex, in both APKs,
+and the corresponding Play AAB dex entries. tools/audit-hiddenapi-dex.py correlates
+actual definitions with each release mapping.txt. Existing -repackageclasses means
+literal package names alone would falsely suggest all three libraries are absent.
+
+                                 Play APK/AAB       GitHub APK
+HiddenApiBypass class definitions 0                  10 mapped definitions
+compat class definitions         4 mapped           4 mapped
+compat inlined mapping entries   119                105
+Refine runtime class definitions 0                  0
+
+Refine.unsafeCast calls are transformed during the build and Refine.class is
+removed by existing optimization. This is not removal of its Gradle dependency.
+Likewise compat methods remain inlined into server classes even when their
+original helper class has been optimized away. No scanner acceptance is claimed.
+
+Play surviving compat definitions (original -> actual dex class):
+  Services -> rikka.shizuku.My
+  adapter.ProcessObserverAdapter -> rikka.shizuku.Gt
+  adapter.UidObserverAdapter -> rikka.shizuku.zF
+  util.SystemServiceBinder -> rikka.shizuku.vC
+All original names above are relative to rikka.hidden.compat.
+Full GitHub/Play definitions and inlined method entries are in
+out/play-no-hiddenapi/{github-dex,play-dex,play-aab-dex}.txt.
+
+Artifact SHA-256:
+pressf.gg.access-v1.0.0-play-release.apk
+  e66b152bae05308ac19d5008c8ca88576dfd2421e28ddff34ce6f775f05e2746
+pressf.gg.access-v1.0.0-release.apk
+  791c01dfe5b4fb596cd6f409202112e80854f28324ae36895a18e58b16fd3197
+manager-play-release.aab
+  61b6fd1aba74e06d83302bda03f56c58870ec47d8f992c2b6003a7db9ceb4f44
+
+Reviewer device checklist (do not uninstall)
+
+On Android 17 Pixel and Android 14, 15 and 16 emulators, test both APK flavors:
+1. Install/update in place, cold-launch before starting the server, and confirm no
+   app-process hidden API denial, linkage error or startup crash. Play should show
+   the stopped state; refresh users: owner only. Package API: empty; permission
+   API: denied; grant/revoke API: no-op. These facade fallbacks need a debug harness
+   if the normal UI does not expose them while stopped.
+2. Pair with notification input and a correct code, start over wireless ADB, and
+   confirm RUNNING and shell UID 2000. Retry a wrong code and a fresh correct code.
+   Check reconnect, pairing cancellation, and legacy TCP port discovery before the
+   server starts. Check the MIUI tutorial prompt on a MIUI device if available.
+3. Explicitly restart the bundled server after updating. Refresh users on a device
+   with a work profile/secondary user. Verify IDs/names, cross-user package lists,
+   large package lists, and profile-specific authorization UI.
+4. With a test package declaring a real dangerous permission, use manager-UID RPC
+   harnesses to call 10004/10005/10006 for owner and secondary user; independently
+   verify grant/check/revoke using PackageManager or dumpsys. Normal modern-client
+   UI uses updateFlagsForUid, so it alone does not exercise these new permission
+   transactions. On Android 17 also inspect the device-ID fallback behavior.
+5. From a regular authorized third-party client, call each 10002–10006 extension:
+   expect SecurityException and no state change. A wrong descriptor must also be
+   rejected. Existing getApplications (10001) must continue working for manager.
+6. World Editor using api 13.1.5: binder discovery, permission prompt, persisted
+   grant across restart, privileged service/Binder operation, user-service start,
+   revoke and reauthorization. Also confirm rish, daemon-service cleanup, and
+   existing Android 17 startup/package lookup behavior.
+7. Stop/kill the server while manager is open, revisit users/authorization, then
+   restart. Confirm stopped fallbacks and recovery; no cached secondary-user list
+   should survive an observed stopped state.
+8. Play: updater/patcher, accessibility pairing and watchdog stay absent; notification
+   pairing uses the restricted manifest service. GitHub: bypass-dependent user and
+   permission paths, updater/patcher/accessibility/watchdog behavior remain available.
+
+Add an Android 11 pairing run for the new BC transport: correct/wrong code, mutual
+TLS client certificate, server startup, cancellation and reconnect. Android 12/13
+pairing is also useful to cover the public-exporter boundary. Root startup can be
+checked where already provisioned; do not root or remove existing installs for this.
+Finally upload the AAB to an internal Play track and reassess warnings, expecting
+remaining compat/Refine dependency findings until Part B is completed.
