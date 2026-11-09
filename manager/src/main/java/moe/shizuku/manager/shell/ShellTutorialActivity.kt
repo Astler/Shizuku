@@ -13,7 +13,7 @@ import moe.shizuku.manager.app.AppBarActivity
 import moe.shizuku.manager.databinding.TerminalTutorialActivityBinding
 import moe.shizuku.manager.ktx.toHtml
 import moe.shizuku.manager.utils.CustomTabsHelper
-import rikka.compatibility.DeviceCompatibility
+import moe.shizuku.manager.utils.AppProcessApis
 import rikka.html.text.HtmlCompat
 import rikka.insets.*
 
@@ -89,7 +89,7 @@ class ShellTutorialActivity : AppBarActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
 
         binding.apply {
-            if (DeviceCompatibility.isMiui()) {
+            if (AppProcessApis.isMiui()) {
                 miui.isVisible = true
             }
 

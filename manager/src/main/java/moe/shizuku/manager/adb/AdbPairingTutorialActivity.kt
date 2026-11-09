@@ -21,7 +21,7 @@ import moe.shizuku.manager.app.AppBarActivity
 import moe.shizuku.manager.databinding.AdbPairingTutorialActivityBinding
 import moe.shizuku.manager.utils.SettingsHelper
 import moe.shizuku.manager.utils.SettingsPage
-import rikka.compatibility.DeviceCompatibility
+import moe.shizuku.manager.utils.AppProcessApis
 
 @RequiresApi(Build.VERSION_CODES.R)
 class AdbPairingTutorialActivity : AppBarActivity() {
@@ -47,7 +47,7 @@ class AdbPairingTutorialActivity : AppBarActivity() {
         binding.apply {
             syncNotificationEnabled()
 
-            if (DeviceCompatibility.isMiui()) {
+            if (AppProcessApis.isMiui()) {
                 miui.isVisible = true
             }
 
