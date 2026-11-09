@@ -6,6 +6,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
@@ -15,6 +16,7 @@ import static org.mockito.Mockito.when;
 
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.content.pm.UserInfo;
 import android.os.Binder;
 import android.os.Bundle;
 import moe.shizuku.server.IShizukuApplication;
@@ -27,6 +29,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.MockedStatic;
+import org.mockito.InOrder;
 
 import java.lang.reflect.Field;
 import java.util.Arrays;
@@ -34,6 +37,7 @@ import java.util.Collections;
 
 import rikka.hidden.compat.ActivityManagerApis;
 import rikka.hidden.compat.PackageManagerApis;
+import rikka.hidden.compat.UserManagerApis;
 import rikka.shizuku.server.util.Android17Compat;
 import rikka.shizuku.server.util.InstalledPackagesCompat;
 
@@ -237,6 +241,125 @@ public class ShizukuServiceTest {
         installedPackages.verify(() -> InstalledPackagesCompat.getInstalledPackagesNoThrow(
                 PackageManager.GET_META_DATA | PackageManager.GET_PERMISSIONS, CLIENT_USER));
         verify(reply).writeNoException();
+    }
+
+    @Test
+    public void systemApiTransactionsRejectClientsBeforeReadingArgumentsOrClearingIdentity() {
+        binder.when(Binder::getCallingUid).thenReturn(CLIENT_UID);
+        try (MockedStatic<UserManagerApis> users = mockStatic(UserManagerApis.class)) {
+            for (int code : new int[]{ServerConstants.BINDER_TRANSACTION_getUsers,
+                    ServerConstants.BINDER_TRANSACTION_getInstalledPackages,
+                    ServerConstants.BINDER_TRANSACTION_checkRuntimePermission,
+                    ServerConstants.BINDER_TRANSACTION_grantRuntimePermission,
+                    ServerConstants.BINDER_TRANSACTION_revokeRuntimePermission}) {
+                Parcel data = mock(Parcel.class);
+                Parcel reply = mock(Parcel.class);
+                assertThrows(SecurityException.class, () -> service.onTransact(code, data, reply, 0));
+                verify(data).enforceInterface(ShizukuApiConstants.BINDER_DESCRIPTOR);
+                verify(data, never()).readInt();
+                verify(data, never()).readLong();
+                verify(data, never()).readString();
+                verifyNoInteractions(reply);
+            }
+            users.verifyNoInteractions();
+        }
+        binder.verify(Binder::clearCallingIdentity, never());
+        installedPackages.verifyNoInteractions();
+        permissions.verifyNoInteractions();
+    }
+
+    @Test
+    public void userListAllowsSecondaryUserManagerAndWritesOnlyIdsAndNames() throws Exception {
+        binder.when(Binder::getCallingUid).thenReturn(1000000 + MANAGER_UID);
+        binder.when(Binder::clearCallingIdentity).thenReturn(88L);
+        UserInfo owner = mock(UserInfo.class);
+        owner.id = 0;
+        owner.name = "Owner";
+        UserInfo work = mock(UserInfo.class);
+        work.id = CLIENT_USER;
+        work.name = "Work";
+        Parcel data = mock(Parcel.class);
+        Parcel reply = mock(Parcel.class);
+        try (MockedStatic<UserManagerApis> users = mockStatic(UserManagerApis.class)) {
+            users.when(() -> UserManagerApis.getUsers(true, true, true))
+                    .thenReturn(Arrays.asList(owner, work));
+            assertTrue(service.onTransact(ServerConstants.BINDER_TRANSACTION_getUsers, data, reply, 0));
+        }
+        InOrder order = inOrder(reply);
+        order.verify(reply).writeNoException();
+        order.verify(reply).writeInt(2);
+        order.verify(reply).writeInt(0);
+        order.verify(reply).writeString("Owner");
+        order.verify(reply).writeInt(CLIENT_USER);
+        order.verify(reply).writeString("Work");
+        order.verifyNoMoreInteractions();
+        binder.verify(() -> Binder.restoreCallingIdentity(88L));
+    }
+
+    @Test
+    public void packageListPreservesLongFlagsAndRequestedUser() throws Exception {
+        long flags = (1L << 40) | PackageManager.GET_PERMISSIONS;
+        Parcel data = mock(Parcel.class);
+        Parcel reply = mock(Parcel.class);
+        when(data.readLong()).thenReturn(flags);
+        when(data.readInt()).thenReturn(CLIENT_USER);
+        installedPackages.when(() -> InstalledPackagesCompat.getInstalledPackages(flags, CLIENT_USER))
+                .thenReturn(Collections.emptyList());
+
+        assertTrue(service.onTransact(ServerConstants.BINDER_TRANSACTION_getInstalledPackages, data, reply, 0));
+
+        installedPackages.verify(() -> InstalledPackagesCompat.getInstalledPackages(flags, CLIENT_USER));
+        verify(reply).writeNoException();
+    }
+
+    @Test
+    public void permissionCheckUsesAndroid17CompatibilityAndPreservesArgumentOrder() throws Exception {
+        Parcel data = permissionArguments();
+        Parcel reply = mock(Parcel.class);
+        permissions.when(() -> Android17Compat.checkPermission("test.permission", CLIENT_PACKAGE, CLIENT_USER))
+                .thenReturn(PackageManager.PERMISSION_DENIED);
+
+        assertTrue(service.onTransact(ServerConstants.BINDER_TRANSACTION_checkRuntimePermission, data, reply, 0));
+
+        permissions.verify(() -> Android17Compat.checkPermission("test.permission", CLIENT_PACKAGE, CLIENT_USER));
+        verify(reply).writeInt(PackageManager.PERMISSION_DENIED);
+    }
+
+    @Test
+    public void permissionGrantAndRevokeUseAndroid17Compatibility() throws Exception {
+        Parcel grantReply = mock(Parcel.class);
+        Parcel revokeReply = mock(Parcel.class);
+
+        assertTrue(service.onTransact(ServerConstants.BINDER_TRANSACTION_grantRuntimePermission,
+                permissionArguments(), grantReply, 0));
+        assertTrue(service.onTransact(ServerConstants.BINDER_TRANSACTION_revokeRuntimePermission,
+                permissionArguments(), revokeReply, 0));
+
+        permissions.verify(() -> Android17Compat.grantRuntimePermission(CLIENT_PACKAGE, "test.permission", CLIENT_USER));
+        permissions.verify(() -> Android17Compat.revokeRuntimePermission(CLIENT_PACKAGE, "test.permission", CLIENT_USER));
+        verify(grantReply).writeNoException();
+        verify(revokeReply).writeNoException();
+    }
+
+    @Test
+    public void failedPermissionMutationRestoresBinderIdentityAndDoesNotReportSuccess() {
+        binder.when(Binder::clearCallingIdentity).thenReturn(88L);
+        permissions.when(() -> Android17Compat.grantRuntimePermission(CLIENT_PACKAGE, "test.permission", CLIENT_USER))
+                .thenThrow(new RemoteException());
+        Parcel reply = mock(Parcel.class);
+
+        assertThrows(RemoteException.class, () -> service.onTransact(
+                ServerConstants.BINDER_TRANSACTION_grantRuntimePermission, permissionArguments(), reply, 0));
+
+        binder.verify(() -> Binder.restoreCallingIdentity(88L));
+        verifyNoInteractions(reply);
+    }
+
+    private Parcel permissionArguments() {
+        Parcel data = mock(Parcel.class);
+        when(data.readString()).thenReturn(CLIENT_PACKAGE, "test.permission");
+        when(data.readInt()).thenReturn(CLIENT_USER);
+        return data;
     }
 
     private void setField(Class<?> owner, String name, Object value) throws Exception {

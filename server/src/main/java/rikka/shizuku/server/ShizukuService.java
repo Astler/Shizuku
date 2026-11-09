@@ -542,6 +542,63 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
     @Override
     public boolean onTransact(int code, Parcel data, Parcel reply, int flags) throws RemoteException {
         //LOGGER.d("transact: code=%d, calling uid=%d", code, Binder.getCallingUid());
+        if (code >= ServerConstants.BINDER_TRANSACTION_getUsers
+                && code <= ServerConstants.BINDER_TRANSACTION_revokeRuntimePermission) {
+            data.enforceInterface(ShizukuApiConstants.BINDER_DESCRIPTOR);
+            // Authenticate before reading arguments or dropping the caller's identity.
+            enforceManagerPermission("managerSystemApi");
+            long identity = Binder.clearCallingIdentity();
+            try {
+                switch (code) {
+                    case ServerConstants.BINDER_TRANSACTION_getUsers: {
+                        List<UserInfo> users = UserManagerApis.getUsers(true, true, true);
+                        reply.writeNoException();
+                        reply.writeInt(users.size());
+                        for (UserInfo user : users) {
+                            // Do not expose the hidden framework UserInfo parcelable to the app.
+                            reply.writeInt(user.id);
+                            reply.writeString(user.name);
+                        }
+                        break;
+                    }
+                    case ServerConstants.BINDER_TRANSACTION_getInstalledPackages: {
+                        long packageFlags = data.readLong();
+                        int userId = data.readInt();
+                        List<PackageInfo> packages;
+                        try {
+                            packages = InstalledPackagesCompat.getInstalledPackages(packageFlags, userId);
+                        } catch (ReflectiveOperationException e) {
+                            throw new IllegalStateException("Cannot enumerate installed packages", e);
+                        }
+                        reply.writeNoException();
+                        new ParcelableListSlice<>(packages).writeToParcel(reply,
+                                android.os.Parcelable.PARCELABLE_WRITE_RETURN_VALUE);
+                        break;
+                    }
+                    default: {
+                        String packageName = Objects.requireNonNull(data.readString());
+                        String permissionName = Objects.requireNonNull(data.readString());
+                        int userId = data.readInt();
+                        if (code == ServerConstants.BINDER_TRANSACTION_checkRuntimePermission) {
+                            int result = Android17Compat.checkPermission(permissionName, packageName, userId);
+                            reply.writeNoException();
+                            reply.writeInt(result);
+                        } else {
+                            if (code == ServerConstants.BINDER_TRANSACTION_grantRuntimePermission) {
+                                Android17Compat.grantRuntimePermission(packageName, permissionName, userId);
+                            } else {
+                                Android17Compat.revokeRuntimePermission(packageName, permissionName, userId);
+                            }
+                            reply.writeNoException();
+                        }
+                        break;
+                    }
+                }
+            } finally {
+                Binder.restoreCallingIdentity(identity);
+            }
+            return true;
+        }
         if (code == ServerConstants.BINDER_TRANSACTION_getApplications) {
             data.enforceInterface(ShizukuApiConstants.BINDER_DESCRIPTOR);
             enforceManagerPermission("getApplications");

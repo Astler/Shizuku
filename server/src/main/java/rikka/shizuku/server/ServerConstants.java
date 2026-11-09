@@ -13,4 +13,11 @@ public class ServerConstants {
     public static final String REQUEST_PERMISSION_ACTION = BuildConfig.MANAGER_APPLICATION_ID + ".intent.action.REQUEST_PERMISSION";
 
     public static final int BINDER_TRANSACTION_getApplications = 10001;
+
+    // Manager-only extensions. Never renumber the public IShizukuService protocol.
+    public static final int BINDER_TRANSACTION_getUsers = 10002;
+    public static final int BINDER_TRANSACTION_getInstalledPackages = 10003;
+    public static final int BINDER_TRANSACTION_checkRuntimePermission = 10004;
+    public static final int BINDER_TRANSACTION_grantRuntimePermission = 10005;
+    public static final int BINDER_TRANSACTION_revokeRuntimePermission = 10006;
 }

@@ -207,7 +207,8 @@ dependencies {
     implementation project(":api")
     implementation project(":provider")
 
-    implementation libs.hidden.compat
+    githubImplementation libs.hidden.compat
+    // R8 also needs the shell server's framework types; these stubs are never packaged.
     compileOnly libs.hidden.stub
 
     implementation "androidx.browser:browser:1.8.0"
