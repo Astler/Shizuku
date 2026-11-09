@@ -76,6 +76,10 @@ android {
             shrinkResources = true
             vcsInfo.include = false
             proguardFiles = ["proguard-rules.pro"]
+            // Ships native debug symbols inside the AAB so Play can symbolicate native crashes/ANRs.
+            ndk {
+                debugSymbolLevel = "FULL"
+            }
         }
     }
     externalNativeBuild {
